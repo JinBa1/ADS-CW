@@ -4,7 +4,10 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.BufferedWriter;
 import java.io.IOException;
+
+import ed.inf.adbs.blazedb.operator.ScanOperator;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.Select;
 import ed.inf.adbs.blazedb.operator.Operator;
@@ -30,14 +33,16 @@ public class BlazeDB {
 		String outputFile = args[2];
 
 		// Just for demonstration, replace this function call with your logic
-		parsingExample(inputFile);
+//		parsingExample(inputFile);
+		DBCatalog.initDBCatalog(databaseDir);
+		Operator rootOp = parsing(inputFile);
+		execute(rootOp, outputFile);
 	}
 
 	/**
 	 * Example method for getting started with JSQLParser. Reads SQL statement
 	 * from a file or a string and prints the SELECT and WHERE clauses to screen.
 	 */
-
 	public static void parsingExample(String filename) {
 		try {
 			Statement statement = CCJSqlParserUtil.parse(new FileReader(filename));
@@ -54,20 +59,27 @@ public class BlazeDB {
 		}
 	}
 
-	public static void parsing(String filename) {
+	public static Operator parsing(String filename) {
+		Operator rootOp = null;
 		try {
 			Statement statement = CCJSqlParserUtil.parse(new FileReader(filename));
-//            Statement statement = CCJSqlParserUtil.parse("SELECT Course.cid, Student.name FROM Course, Student WHERE Student.sid = 3");
 			if (statement != null) {
 				Select select = (Select) statement;
 				System.out.println("Statement: " + select);
 				System.out.println("SELECT items: " + select.getPlainSelect().getSelectItems());
 				System.out.println("WHERE expression: " + select.getPlainSelect().getWhere());
+
+				Table table = (Table) select.getPlainSelect().getFromItem();
+				System.out.println("From Item: " + table.getName());
+
+				rootOp = new ScanOperator(table.getName());
 			}
 		} catch (Exception e) {
 			System.err.println("Exception occurred during parsing");
 			e.printStackTrace();
 		}
+
+		return rootOp;
 	}
 
 	/**

@@ -18,6 +18,9 @@ public class ScanOperator extends Operator {
     public ScanOperator(String tableName) {
         this.tableName = tableName;
         tablePath = DBCatalog.getInstance().getDBLocation(tableName);
+        child = null; // Scan cannot have child operator
+
+        openReader();
     }
 
     private void openReader() {
@@ -34,6 +37,7 @@ public class ScanOperator extends Operator {
         try {
             String line = reader.readLine();
             if (line == null) { // END OF FILE
+                closeReader();
                 return null;
             }
 

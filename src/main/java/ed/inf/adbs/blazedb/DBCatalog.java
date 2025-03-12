@@ -25,8 +25,16 @@ public class DBCatalog {
     public static DBCatalog getInstance() {
         if (instance == null) {
             instance = new DBCatalog();
+            System.out.println("Created DBCatalog, but haven't load content, use initDBCatalog() instead");
         }
         return instance;
+    }
+
+    public static void initDBCatalog(String dBDirectory) {
+        if (instance == null) {
+            instance = new DBCatalog();
+            instance.loadDBCatalog(dBDirectory);
+        }
     }
 
     private void loadDBCatalog(String dBDirectory) {

@@ -9,6 +9,8 @@ import ed.inf.adbs.blazedb.Tuple;
  */
 public abstract class Operator {
 
+    protected Operator child;
+
     /**
      * Retrieves the next tuple from the iterator.
      * @return A Tuple object representing the row of data, or NULL if EOF reached.

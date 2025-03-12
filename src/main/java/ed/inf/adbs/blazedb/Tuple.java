@@ -23,4 +23,15 @@ public class Tuple {
         return attributes.get(i);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < attributes.size(); i++) {
+            sb.append(attributes.get(i));
+            if (i < attributes.size() - 1) {
+                sb.append(", ");
+            }
+        }
+        return sb.toString();
+    }
 }
