@@ -16,4 +16,6 @@ public class BlazeDBTest {
 	public void shouldAnswerWithTrue() {
 		assertTrue(true);
 	}
+
+
 }

@@ -68,7 +68,7 @@ public class ScanOperator extends Operator {
         }
     }
 
-    public void closeReader() {
+    private void closeReader() {
         try {
             if (reader != null) {
                 reader.close();
@@ -77,5 +77,9 @@ public class ScanOperator extends Operator {
             System.err.println("Error closing reader for table " + tableName + ": " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    public void close() {
+        closeReader();
     }
 }

@@ -6,6 +6,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 
 import ed.inf.adbs.blazedb.operator.ScanOperator;
+import ed.inf.adbs.blazedb.operator.SelectOperator;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
@@ -63,6 +64,7 @@ public class BlazeDB {
 		Operator rootOp = null;
 		try {
 			Statement statement = CCJSqlParserUtil.parse(new FileReader(filename));
+//			Statement statement = CCJSqlParserUtil.parse("SELECT Course.cid, Student.name FROM Course, Student WHERE Student.sid = 3 AND Student.aid > 100");
 			if (statement != null) {
 				Select select = (Select) statement;
 				System.out.println("Statement: " + select);
@@ -72,7 +74,14 @@ public class BlazeDB {
 				Table table = (Table) select.getPlainSelect().getFromItem();
 				System.out.println("From Item: " + table.getName());
 
-				rootOp = new ScanOperator(table.getName());
+
+
+				if (select.getPlainSelect().getWhere() != null) {
+					Operator scanOp = new ScanOperator(table.getName());
+					rootOp = new SelectOperator(scanOp, select.getPlainSelect().getWhere());
+				} else {
+					rootOp = new ScanOperator(table.getName());
+				}
 			}
 		} catch (Exception e) {
 			System.err.println("Exception occurred during parsing");
