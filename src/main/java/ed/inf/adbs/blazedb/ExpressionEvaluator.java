@@ -35,6 +35,22 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         return resultStack.pop();
     }
 
+    public Integer evaluateValue(Expression expression, Tuple tuple) {
+        // may need to check for expression type, but with assignment assumption should be safe
+        // what if a logical expressin is given? may want to guard that
+        this.currentTuple = tuple;
+        this.resultStack.clear();
+        this.valueStack.clear();
+
+        expression.accept(this);
+
+        if (valueStack.isEmpty()) {
+            throw new RuntimeException("Expression evaluation did not produce a value");
+        }
+
+        return valueStack.pop();
+    }
+
     @Override
     public void visit(AndExpression andExpression) {
         andExpression.getLeftExpression().accept(this);

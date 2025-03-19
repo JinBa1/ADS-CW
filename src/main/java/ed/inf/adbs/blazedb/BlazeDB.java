@@ -36,7 +36,7 @@ public class BlazeDB {
 		// Just for demonstration, replace this function call with your logic
 //		parsingExample(inputFile);
 		DBCatalog.initDBCatalog(databaseDir);
-		Operator rootOp = parsing(inputFile);
+		Operator rootOp = QueryPlanner.parseStatement(inputFile);
 		execute(rootOp, outputFile);
 	}
 
@@ -59,7 +59,6 @@ public class BlazeDB {
 			e.printStackTrace();
 		}
 	}
-
 	public static Operator parsing(String filename) {
 		Operator rootOp = null;
 		try {
