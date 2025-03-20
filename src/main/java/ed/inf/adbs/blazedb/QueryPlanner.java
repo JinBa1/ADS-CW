@@ -4,6 +4,7 @@ import ed.inf.adbs.blazedb.operator.Operator;
 import ed.inf.adbs.blazedb.operator.ProjectOperator;
 import ed.inf.adbs.blazedb.operator.ScanOperator;
 import ed.inf.adbs.blazedb.operator.SelectOperator;
+import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
@@ -11,6 +12,7 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SelectItemVisitorAdapter;
 
 import java.io.FileReader;
 import java.util.ArrayList;
@@ -52,7 +54,8 @@ public class QueryPlanner {
         List<?> selectItems = select.getPlainSelect().getSelectItems();
         boolean exist = true;
         for (Object item : selectItems) {
-            if (item instanceof AllColumns) {
+            Expression exp = ((SelectItem<?>) item).getExpression();
+            if (exp instanceof AllColumns) {
                 exist = false;
                 break;
             }
@@ -69,8 +72,10 @@ public class QueryPlanner {
         List<Integer> projectCols = new ArrayList<Integer>();
 
         for (Object item : selectItems) {
-            if (item instanceof Column) {
-                Column column = (Column) item;
+            Expression exp = ((SelectItem<?>) item).getExpression();
+            if (exp instanceof Column) {
+
+                Column column = (Column) exp;
                 String columnName = column.getColumnName();
                 String tableName = column.getTable().getName();
 

@@ -50,7 +50,7 @@ public class DBCatalog {
 
                     Map<String, Integer> columnMap = new HashMap<>();
                     for (int i = 1; i < parts.length; i++) {
-                        columnMap.put(parts[i], i - 1);
+                        columnMap.put(parts[i].toLowerCase(), i - 1); //to lower case
                     }
 
                     dBSchemata.put(tableName, columnMap);
@@ -94,6 +94,7 @@ public class DBCatalog {
     }
 
     public Integer getDBColumnName(String tableName, String columnName) {
-        return dBSchemata.get(tableName).get(columnName);
+        // need to capture null schema from get table
+        return dBSchemata.get(tableName).get(columnName.toLowerCase());
     }
 }
