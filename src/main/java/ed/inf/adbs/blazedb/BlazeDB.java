@@ -59,36 +59,7 @@ public class BlazeDB {
 			e.printStackTrace();
 		}
 	}
-	public static Operator parsing(String filename) {
-		Operator rootOp = null;
-		try {
-			Statement statement = CCJSqlParserUtil.parse(new FileReader(filename));
-//			Statement statement = CCJSqlParserUtil.parse("SELECT Course.cid, Student.name FROM Course, Student WHERE Student.sid = 3 AND Student.aid > 100");
-			if (statement != null) {
-				Select select = (Select) statement;
-				System.out.println("Statement: " + select);
-				System.out.println("SELECT items: " + select.getPlainSelect().getSelectItems());
-				System.out.println("WHERE expression: " + select.getPlainSelect().getWhere());
 
-				Table table = (Table) select.getPlainSelect().getFromItem();
-				System.out.println("From Item: " + table.getName());
-
-
-
-				if (select.getPlainSelect().getWhere() != null) {
-					Operator scanOp = new ScanOperator(table.getName());
-					rootOp = new SelectOperator(scanOp, select.getPlainSelect().getWhere());
-				} else {
-					rootOp = new ScanOperator(table.getName());
-				}
-			}
-		} catch (Exception e) {
-			System.err.println("Exception occurred during parsing");
-			e.printStackTrace();
-		}
-
-		return rootOp;
-	}
 
 	/**
 	 * Executes the provided query plan by repeatedly calling `getNextTuple()`
