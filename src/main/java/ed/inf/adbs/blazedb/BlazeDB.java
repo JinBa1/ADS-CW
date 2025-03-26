@@ -75,11 +75,16 @@ public class BlazeDB {
 
 			// Iterate over the tuples produced by root
 			Tuple tuple = root.getNextTuple();
+
+//			System.out.println("first tuple from query plan: " + (tuple == null ? "null" : tuple));
+
 			while (tuple != null) {
 				writer.write(tuple.toString());
 				writer.newLine();
 				tuple = root.getNextTuple();
 			}
+
+
 
 			// Close the writer
 			writer.close();

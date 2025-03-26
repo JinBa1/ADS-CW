@@ -36,6 +36,7 @@ public class QueryPlanner {
                 rootOp = new ScanOperator(firstTable.getName());
 
                 if (existJoinOp(select)) {
+
                     ExpressionPreprocessor preprocessor = new ExpressionPreprocessor();
                     preprocessor.evaluate(select.getPlainSelect().getWhere());
                     List<Expression> joinExpressions = preprocessor.getJoinExpressions();
@@ -52,18 +53,35 @@ public class QueryPlanner {
                         rootOp = new JoinOperator(rootOp, rightOp, joinCondition);
 
                         joinedTableNames.add(table.getName());
+
+                        System.out.println("++ Join plan created with tables: " + joinedTableNames);
+                        System.out.println("   Join condition: " + joinCondition);
+                        System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                    }
+
+                    if (!selectExpressions.isEmpty()) {
+                        rootOp = new SelectOperator(rootOp, combineExpression(selectExpressions));
+                        System.out.println("++ Selection needed.");
+                        System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                     }
 
                 } else if (existSelectOp(select)) {
                     rootOp = new SelectOperator(rootOp, select.getPlainSelect().getWhere());
-                } else if (existProjectOp(select)) {
+                    System.out.println("++ No joins, but select operator found.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                }
+
+                if (existProjectOp(select)) {
                     rootOp = new ProjectOperator(rootOp, getProjectCols(select));
+                    System.out.println("++ Project operator found.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
             }
         } catch (Exception e) {
             System.err.println("Exception occurred during parsing");
             e.printStackTrace();
         }
+
 
         return rootOp;
     }

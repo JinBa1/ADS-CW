@@ -28,6 +28,7 @@ public class JoinOperator extends Operator {
     public Tuple getNextTuple() {
         if (currentOuterTuple == null) {
             currentOuterTuple = outerChild.getNextTuple();
+            System.out.println("JoinOperator: got outer tuple: " + (currentOuterTuple== null ? "null" : currentOuterTuple));
             if (currentOuterTuple == null) {
                 return null;
             }
@@ -45,8 +46,10 @@ public class JoinOperator extends Operator {
                 continue;
             }
             Tuple combined = combineTuples(currentOuterTuple, innerTuple);
+            System.out.println("JoinOperator: evaluating: " + combined);
 
-            if (expression == null || evaluator.evaluate(expression, combined)) {
+            if (evaluator.evaluate(expression, combined)) {
+                System.out.println("JoinOperator: returning combined tuple: " + combined);
                 return combined;
             }
         }
@@ -76,6 +79,8 @@ public class JoinOperator extends Operator {
         Tuple innerTuple = child.getNextTuple();
         int tupleSize = innerTuple.getTuple().size();
         String tableName = child.propagateTableName();
+        System.out.println("tuple Size: " + tupleSize);
+        System.out.println("offset table name: " + tableName);
         this.evaluator = new ExpressionEvaluator(tupleSize, tableName);
         child.reset();
     }
