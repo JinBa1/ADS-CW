@@ -76,12 +76,13 @@ public class JoinOperator extends Operator {
 
     private void initEvaluator() {
         // sample the inner tuple info, then reset
-        Tuple innerTuple = child.getNextTuple();
-        int tupleSize = innerTuple.getTuple().size();
+        Tuple outerTuple = outerChild.getNextTuple();
+        int tupleSize = outerTuple.getTuple().size();
         String tableName = child.propagateTableName();
         System.out.println("tuple Size: " + tupleSize);
         System.out.println("offset table name: " + tableName);
         this.evaluator = new ExpressionEvaluator(tupleSize, tableName);
         child.reset();
+        outerChild.reset();
     }
 }

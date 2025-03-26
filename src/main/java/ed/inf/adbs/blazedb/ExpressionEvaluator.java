@@ -41,6 +41,9 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
             throw new RuntimeException("Expression evaluation did not produce a result");
         }
 
+        boolean result = resultStack.peek();
+        System.out.println("expression: " + expression + "evaluated to: " + result + "\n");
+
         return resultStack.pop();
     }
 
@@ -116,6 +119,12 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         if (tableName.equals(rightTableName)) {
             colIdx += rightTupleOffset;
         }
+
+        System.out.println("Column " + tableName + "." + columnName +
+                " resolved to index " + colIdx +
+                (tableName.equals(rightTableName) ? " (adjusted with offset " + rightTupleOffset + ")" : "") +
+                ", value: " + currentTuple.getAttribute(colIdx));
+
 
         valueStack.push(currentTuple.getAttribute(colIdx));
     }
