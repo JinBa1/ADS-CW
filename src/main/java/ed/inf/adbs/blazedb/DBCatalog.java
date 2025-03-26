@@ -97,4 +97,15 @@ public class DBCatalog {
         // need to capture null schema from get table
         return dBSchemata.get(tableName).get(columnName.toLowerCase());
     }
+
+    public boolean tableExists(String tableName) {
+        return (dBLocations.containsKey(tableName) && dBSchemata.containsKey(tableName));
+    }
+
+    public boolean columnExists(String tableName, String columnName) {
+        if (!tableExists(tableName)) {
+            return false;
+        }
+        return dBSchemata.get(tableName).containsKey(columnName.toLowerCase());
+    }
 }
