@@ -33,4 +33,9 @@ public class SelectOperator extends Operator {
     public void reset() {
         child.reset(); // what else?
     }
+
+    @Override
+    public String propagateTableName() {
+        return child.propagateTableName();
+    }
 }

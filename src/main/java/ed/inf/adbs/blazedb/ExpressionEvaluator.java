@@ -16,9 +16,18 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
     private Stack<Boolean> resultStack;
     private Stack<Integer> valueStack;
 
+    private int rightTupleOffset;
+    private String rightTableName;
+
     public ExpressionEvaluator() {
+        this(0, null);
+    }
+
+    public ExpressionEvaluator(int rightTupleOffset, String rightTableName) {
         resultStack = new Stack<>();
         valueStack = new Stack<>();
+        this.rightTupleOffset= rightTupleOffset;
+        this.rightTableName = rightTableName;
     }
 
     public boolean evaluate(Expression expression, Tuple tuple) {
@@ -34,6 +43,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
 
         return resultStack.pop();
     }
+
 
     public Integer evaluateValue(Expression expression, Tuple tuple) {
         // may need to check for expression type, but with assignment assumption should be safe
@@ -102,6 +112,11 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
         int colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
+
+        if (tableName.equals(rightTableName)) {
+            colIdx += rightTupleOffset;
+        }
+
         valueStack.push(currentTuple.getAttribute(colIdx));
     }
 

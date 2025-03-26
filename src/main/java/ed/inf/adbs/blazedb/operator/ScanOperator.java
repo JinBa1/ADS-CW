@@ -68,6 +68,11 @@ public class ScanOperator extends Operator {
         }
     }
 
+    @Override
+    public String propagateTableName() {
+        return tableName;
+    }
+
     private void closeReader() {
         try {
             if (reader != null) {
