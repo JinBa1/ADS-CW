@@ -11,31 +11,46 @@ public class JoinOperator extends Operator {
     private Expression expression;
     private ExpressionEvaluator evaluator;
 
+    private Tuple currentOuterTuple;
+
+
 
     public JoinOperator(Operator outerChild, Operator innerChild, Expression expression) {
         this.child = innerChild;
         this.outerChild = outerChild;
         this.expression = expression;
+        currentOuterTuple = null;
         initEvaluator();
     }
 
 
     @Override
     public Tuple getNextTuple() {
-        Tuple outerTuple = outerChild.getNextTuple();
-        while (outerTuple != null) {
-            Tuple innerTuple = child.getNextTuple();
-            while (innerTuple != null) {
-                Tuple combined = combineTuples(outerTuple, innerTuple);
-                if (evaluator.evaluate(expression, combined)) {
-                    return combined;
-                }
-                innerTuple = child.getNextTuple();
+        if (currentOuterTuple == null) {
+            currentOuterTuple = outerChild.getNextTuple();
+            if (currentOuterTuple == null) {
+                return null;
             }
-            outerTuple = child.getNextTuple();
             child.reset();
         }
-        return null;
+
+        while (true) {
+            Tuple innerTuple = child.getNextTuple();
+            if (innerTuple == null) {
+                currentOuterTuple = outerChild.getNextTuple();
+                if (currentOuterTuple == null) {
+                    return null;
+                }
+                child.reset();
+                continue;
+            }
+            Tuple combined = combineTuples(currentOuterTuple, innerTuple);
+
+            if (expression == null || evaluator.evaluate(expression, combined)) {
+                return combined;
+            }
+        }
+
     }
 
     @Override
