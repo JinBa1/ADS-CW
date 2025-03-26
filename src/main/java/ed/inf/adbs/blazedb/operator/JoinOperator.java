@@ -48,7 +48,7 @@ public class JoinOperator extends Operator {
             Tuple combined = combineTuples(currentOuterTuple, innerTuple);
             System.out.println("JoinOperator: evaluating: " + combined);
 
-            if (evaluator.evaluate(expression, combined)) {
+            if (expression == null  || evaluator.evaluate(expression, combined)) {
                 System.out.println("JoinOperator: returning combined tuple: " + combined);
                 return combined;
             }
