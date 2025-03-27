@@ -31,8 +31,10 @@ public class QueryPlanner {
                 System.out.println("WHERE expression: " + select.getPlainSelect().getWhere());
                 Table firstTable = (Table) select.getPlainSelect().getFromItem();
                 System.out.println("From Item: " + firstTable.getName());
-                System.out.println("Order by: " + (select.getPlainSelect().getOrderByElements()).get(0).getExpression());
-
+                if (existSortOp(select)) {
+                    System.out.println("Order by: " + (select.getPlainSelect().getOrderByElements()).get(0).getExpression());
+                }
+                System.out.println("Distinct: " + select.getPlainSelect().getDistinct());
 
                 rootOp = new ScanOperator(firstTable.getName());
 
@@ -78,6 +80,12 @@ public class QueryPlanner {
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
 
+                if (existDistinctOp(select)) {
+                    rootOp = new DuplicateEliminationOperator(rootOp);
+                    System.out.println("++ Duplicate elimination operator added for DISTINCT.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                }
+
                 if (existSortOp(select)) {
                     rootOp = new SortOperator(rootOp, getSortCols(select));
                     System.out.println("++ Sort operator found.");
@@ -91,6 +99,10 @@ public class QueryPlanner {
 
 
         return rootOp;
+    }
+
+    private static boolean existDistinctOp(Select select) {
+        return select.getPlainSelect().getDistinct() != null;
     }
 
     private static boolean existSortOp(Select select) {
