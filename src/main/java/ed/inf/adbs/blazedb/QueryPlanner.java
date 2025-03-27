@@ -31,6 +31,7 @@ public class QueryPlanner {
                 System.out.println("WHERE expression: " + select.getPlainSelect().getWhere());
                 Table firstTable = (Table) select.getPlainSelect().getFromItem();
                 System.out.println("From Item: " + firstTable.getName());
+                System.out.println("Order by: " + (select.getPlainSelect().getOrderByElements()).get(0).getExpression());
 
 
                 rootOp = new ScanOperator(firstTable.getName());
@@ -76,6 +77,12 @@ public class QueryPlanner {
                     System.out.println("++ Project operator found.");
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
+
+                if (existSortOp(select)) {
+                    rootOp = new SortOperator(rootOp, getSortCols(select));
+                    System.out.println("++ Sort operator found.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                }
             }
         } catch (Exception e) {
             System.err.println("Exception occurred during parsing");
@@ -84,6 +91,11 @@ public class QueryPlanner {
 
 
         return rootOp;
+    }
+
+    private static boolean existSortOp(Select select) {
+        return (select.getPlainSelect().getOrderByElements() != null
+        && !select.getPlainSelect().getOrderByElements().isEmpty());
     }
 
     private static boolean existJoinOp(Select select) {
@@ -107,6 +119,25 @@ public class QueryPlanner {
         return (select.getPlainSelect().getWhere() != null);
     }
 
+    private static List<Column> getSortCols(Select select) {
+        List<OrderByElement> orderByElements = select.getPlainSelect().getOrderByElements();
+        List<Column> sortCols = new ArrayList<>();
+
+        for (OrderByElement orderByElement : orderByElements) {
+            Expression exp = orderByElement.getExpression();
+            if (exp instanceof Column) {
+
+                Column column = (Column) exp;
+
+                sortCols.add(column);
+            } else {
+                throw new Error("Unexpected item: " + orderByElement + " of type " + orderByElements.getClass());
+            }
+        }
+        return sortCols;
+    }
+
+    // maybe merge the two functions since similar
     private static List<Column> getProjectCols(Select select) {
         List<?> selectItems = select.getPlainSelect().getSelectItems();
         List<Column> projectCols = new ArrayList<>();

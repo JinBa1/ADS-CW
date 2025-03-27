@@ -72,7 +72,11 @@ public class ProjectOperator extends Operator {
     }
 
     private void resolveColumnIndices() {
-        String schemaId = child.propagateSchemaId();
+        if (indicesResolved) {
+            return;
+        }
+
+        String schemaId = propagateSchemaId();
         resolvedIndices = new ArrayList<>();
 
         for (Column column : columns) {
