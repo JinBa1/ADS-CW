@@ -186,4 +186,15 @@ public class DBCatalog {
 
         return registerIntermediateSchema(joinedSchema);
     }
+
+
+    public static Integer resolveColumnIndex(String schemaId, String tableName, String columnName) {
+        DBCatalog catalog = DBCatalog.getInstance();
+
+        if (schemaId.startsWith("temp_")) {
+            return catalog.getIntermediateColumnName(schemaId, tableName, columnName);
+        } else {
+            return catalog.getDBColumnName(tableName, columnName);
+        }
+    }
 }

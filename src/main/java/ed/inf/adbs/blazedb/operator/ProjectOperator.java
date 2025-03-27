@@ -84,12 +84,8 @@ public class ProjectOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            Integer index;
-            if (schemaId.startsWith("temp_")) {
-                index = DBCatalog.getInstance().getIntermediateColumnName(schemaId, tableName, columnName);
-            } else {
-                index = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
-            }
+            Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+
 
             if (index == null) {
                 throw new RuntimeException("Column " + tableName + ", " + columnName + " not found in schema " + schemaId);

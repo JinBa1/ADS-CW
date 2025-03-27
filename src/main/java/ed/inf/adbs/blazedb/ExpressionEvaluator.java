@@ -113,12 +113,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
 
-        Integer colIdx;
-        if (schemaId.startsWith("temp_")) {
-            colIdx = DBCatalog.getInstance().getIntermediateColumnName(schemaId, tableName, columnName);
-        } else {
-            colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
-        }
+        Integer colIdx = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
 
         if (colIdx == null) {
             throw new RuntimeException("Column '" + tableName + "." + columnName + " not found in schema " + schemaId);

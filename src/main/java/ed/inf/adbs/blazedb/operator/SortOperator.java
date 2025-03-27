@@ -61,11 +61,9 @@ public class SortOperator extends Operator {
         if (!buffered) {
             Tuple tuple = child.getNextTuple();
 
-            tupleBuffer.add(tuple);
-
             while (tuple != null) {
+                tupleBuffer.add(tuple);  // Only add non-null tuples
                 tuple = child.getNextTuple();
-                tupleBuffer.add(tuple);
             }
 
             if (!indicesResolved) {
@@ -73,9 +71,7 @@ public class SortOperator extends Operator {
             }
 
             comparator = new TupleComparator(resolvedIndices);
-
             tupleBuffer.sort(comparator);
-
 
             buffered = true;
         }
@@ -94,13 +90,7 @@ public class SortOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            Integer index;
-            if (schemaId.startsWith("temp_")) {
-                index = DBCatalog.getInstance().getIntermediateColumnName(schemaId, tableName, columnName);
-            } else {
-                index = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
-            }
-
+            Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
                 throw new RuntimeException("Column " + tableName + ", " + columnName + " not found in schema " + schemaId);
             }
