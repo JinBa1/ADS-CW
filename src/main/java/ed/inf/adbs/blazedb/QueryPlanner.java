@@ -107,9 +107,9 @@ public class QueryPlanner {
         return (select.getPlainSelect().getWhere() != null);
     }
 
-    private static List<Integer> getProjectCols(Select select) {
+    private static List<Column> getProjectCols(Select select) {
         List<?> selectItems = select.getPlainSelect().getSelectItems();
-        List<Integer> projectCols = new ArrayList<Integer>();
+        List<Column> projectCols = new ArrayList<>();
 
 
         for (Object item : selectItems) {
@@ -117,12 +117,8 @@ public class QueryPlanner {
             if (exp instanceof Column) {
 
                 Column column = (Column) exp;
-                String columnName = column.getColumnName();
-                String tableName = column.getTable().getName();
 
-
-                int colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
-                projectCols.add(colIdx);
+                projectCols.add(column);
             } else {
                 throw new Error("Unexpected item: " + item + " of type " + item.getClass());
             }

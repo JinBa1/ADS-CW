@@ -91,6 +91,10 @@ public class JoinOperator extends Operator {
         DBCatalog catalog = DBCatalog.getInstance();
         this.intermediateSchemaId = catalog.registerJoinSchema(leftSchemaId, rightSchemaId, rightTableName);
 
+        if (intermediateSchemaId == null) {
+            throw new RuntimeException("Could not register join schema for " + leftSchemaId + " and " + rightSchemaId);
+        }
+
         this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
 
         child.reset();
