@@ -16,18 +16,16 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
     private Stack<Boolean> resultStack;
     private Stack<Integer> valueStack;
 
-    private int rightTupleOffset;
-    private String rightTableName;
+    private String schemaId;
 
     public ExpressionEvaluator() {
-        this(0, null);
+        this(null);
     }
 
-    public ExpressionEvaluator(int rightTupleOffset, String rightTableName) {
+    public ExpressionEvaluator(String schemaId) {
         resultStack = new Stack<>();
         valueStack = new Stack<>();
-        this.rightTupleOffset= rightTupleOffset;
-        this.rightTableName = rightTableName;
+        this.schemaId = schemaId;
     }
 
     public boolean evaluate(Expression expression, Tuple tuple) {
@@ -114,15 +112,21 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
     public void visit(Column column) {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
-        int colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
 
-        if (tableName.equals(rightTableName)) {
-            colIdx += rightTupleOffset;
+        Integer colIdx;
+        if (schemaId.startsWith("temp_")) {
+            colIdx = DBCatalog.getInstance().getIntermediateColumnName(schemaId, tableName, columnName);
+        } else {
+            colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
         }
+
+        if (colIdx == null) {
+            throw new RuntimeException("Column '" + tableName + "." + columnName + " not found in schema " + schemaId);
+        }
+
 
         System.out.println("Column " + tableName + "." + columnName +
                 " resolved to index " + colIdx +
-                (tableName.equals(rightTableName) ? " (adjusted with offset " + rightTupleOffset + ")" : "") +
                 ", value: " + currentTuple.getAttribute(colIdx));
 
 

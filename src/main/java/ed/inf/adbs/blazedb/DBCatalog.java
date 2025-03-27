@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 public class DBCatalog {
@@ -17,9 +18,12 @@ public class DBCatalog {
     private final Map<String, Path> dBLocations;
     private final Map<String, Map<String, Integer>> dBSchemata;
 
+    private final Map<String, Map<String, Integer>> intermediateSchemata;
+
     private DBCatalog() {
         dBLocations = new HashMap<>();
         dBSchemata = new HashMap<>();
+        intermediateSchemata = new HashMap<>();
     }
 
     public static DBCatalog getInstance() {
@@ -107,5 +111,48 @@ public class DBCatalog {
             return false;
         }
         return dBSchemata.get(tableName).containsKey(columnName.toLowerCase());
+    }
+
+
+    public String registerIntermediateSchema(Map<String, Integer> schema) {
+        String schemaId = "temp_" + UUID.randomUUID().toString().substring(0, 8);
+        intermediateSchemata.put(schemaId, schema);
+        return schemaId;
+    }
+
+    public Integer getIntermediateColumnName(String schemaId, String tableName, String columnName) {
+        if (!intermediateSchemata.containsKey(schemaId)) {
+            return null;
+        }
+
+        Map<String, Integer> schema = intermediateSchemata.get(schemaId);
+        String key = tableName + "." + columnName.toLowerCase();
+        return schema.get(key);
+    }
+
+    public String registerJoinSchema(String leftSchemaId, String rightSchemaId, String rightTableName) {
+        Map<String, Integer> leftSchema = leftSchemaId.startsWith("temp_")
+                ? intermediateSchemata.get(leftSchemaId)
+                : dBSchemata.get(leftSchemaId);
+
+        Map<String, Integer> rightSchema = rightSchemaId.startsWith("temp_")
+                ? intermediateSchemata.get(rightSchemaId)
+                : dBSchemata.get(rightSchemaId);
+
+        if (leftSchema == null || rightSchema == null) {
+            return null;
+        }
+
+        int leftTupleSize = leftSchema.size();
+
+        Map<String, Integer> joinedSchema = new HashMap<>(leftSchema);
+
+        for (Map.Entry<String, Integer> entry : rightSchema.entrySet()) {
+            String key = entry.getKey();
+            Integer adjustedIdx = entry.getValue() + leftTupleSize;
+            joinedSchema.put(key, adjustedIdx);
+        }
+
+        return registerIntermediateSchema(joinedSchema);
     }
 }

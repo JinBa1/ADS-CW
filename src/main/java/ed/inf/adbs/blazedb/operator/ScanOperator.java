@@ -73,6 +73,11 @@ public class ScanOperator extends Operator {
         return tableName;
     }
 
+    @Override
+    public String propagateSchemaId() {
+        return tableName;
+    }
+
     private void closeReader() {
         try {
             if (reader != null) {

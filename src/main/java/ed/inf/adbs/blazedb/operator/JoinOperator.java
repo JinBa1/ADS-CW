@@ -1,5 +1,6 @@
 package ed.inf.adbs.blazedb.operator;
 
+import ed.inf.adbs.blazedb.DBCatalog;
 import ed.inf.adbs.blazedb.ExpressionEvaluator;
 import ed.inf.adbs.blazedb.Tuple;
 import net.sf.jsqlparser.expression.Expression;
@@ -12,6 +13,8 @@ public class JoinOperator extends Operator {
     private ExpressionEvaluator evaluator;
 
     private Tuple currentOuterTuple;
+
+    private String intermediateSchemaId;
 
 
 
@@ -67,6 +70,11 @@ public class JoinOperator extends Operator {
         return child.propagateTableName();
     }
 
+    @Override
+    public String propagateSchemaId() {
+        return intermediateSchemaId;
+    }
+
     private Tuple combineTuples(Tuple leftTuple, Tuple rightTuple) {
         ArrayList<Integer> combinedAttributes = new ArrayList<>();
         combinedAttributes.addAll(leftTuple.getTuple());
@@ -75,14 +83,18 @@ public class JoinOperator extends Operator {
     }
 
     private void initEvaluator() {
-        // sample the inner tuple info, then reset
-        Tuple outerTuple = outerChild.getNextTuple();
-        int tupleSize = outerTuple.getTuple().size();
-        String tableName = child.propagateTableName();
-        System.out.println("tuple Size: " + tupleSize);
-        System.out.println("offset table name: " + tableName);
-        this.evaluator = new ExpressionEvaluator(tupleSize, tableName);
+
+        String leftSchemaId = outerChild.propagateSchemaId();
+        String rightSchemaId = child.propagateSchemaId();
+        String rightTableName = child.propagateTableName();
+
+        DBCatalog catalog = DBCatalog.getInstance();
+        this.intermediateSchemaId = catalog.registerJoinSchema(leftSchemaId, rightSchemaId, rightTableName);
+
+        this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
+
         child.reset();
         outerChild.reset();
+
     }
 }

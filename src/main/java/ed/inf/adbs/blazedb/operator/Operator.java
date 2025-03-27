@@ -23,4 +23,7 @@ public abstract class Operator {
     public abstract void reset();
 
     public abstract String propagateTableName();
+
+    public abstract String propagateSchemaId();
+
 }

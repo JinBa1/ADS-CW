@@ -111,6 +111,7 @@ public class QueryPlanner {
         List<?> selectItems = select.getPlainSelect().getSelectItems();
         List<Integer> projectCols = new ArrayList<Integer>();
 
+
         for (Object item : selectItems) {
             Expression exp = ((SelectItem<?>) item).getExpression();
             if (exp instanceof Column) {
@@ -118,6 +119,7 @@ public class QueryPlanner {
                 Column column = (Column) exp;
                 String columnName = column.getColumnName();
                 String tableName = column.getTable().getName();
+
 
                 int colIdx = DBCatalog.getInstance().getDBColumnName(tableName, columnName);
                 projectCols.add(colIdx);

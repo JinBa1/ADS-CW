@@ -57,4 +57,9 @@ public class ProjectOperator extends Operator {
     public String propagateTableName() {
         return child.propagateTableName();
     }
+
+    @Override
+    public String propagateSchemaId() {
+        return child.propagateSchemaId();
+    }
 }

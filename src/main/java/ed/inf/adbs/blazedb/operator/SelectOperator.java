@@ -12,7 +12,7 @@ public class SelectOperator extends Operator {
     public SelectOperator(Operator child, Expression expression) {
         this.child = child;
         this.expression = expression;
-        this.evaluator = new ExpressionEvaluator();
+        this.evaluator = new ExpressionEvaluator(propagateSchemaId());
     }
 
     @Override
@@ -37,5 +37,10 @@ public class SelectOperator extends Operator {
     @Override
     public String propagateTableName() {
         return child.propagateTableName();
+    }
+
+    @Override
+    public String propagateSchemaId() {
+        return child.propagateSchemaId();
     }
 }
