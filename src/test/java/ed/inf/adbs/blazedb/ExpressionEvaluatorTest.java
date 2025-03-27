@@ -53,8 +53,8 @@ public class ExpressionEvaluatorTest {
         // Initialize the database catalog
         DBCatalog.initDBCatalog(TEST_DB_DIR);
 
-        // Create evaluator instance
-        evaluator = new ExpressionEvaluator();
+        // Create evaluator instance - using table name as schema ID for base tables
+        evaluator = new ExpressionEvaluator(TEST_TABLE);
 
         // Create a test tuple for evaluations
         testTuple = new Tuple(new ArrayList<>(Arrays.asList(1, 10, 100, 1000)));

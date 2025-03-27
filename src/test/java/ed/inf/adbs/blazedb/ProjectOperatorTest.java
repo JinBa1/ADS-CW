@@ -16,6 +16,8 @@ import ed.inf.adbs.blazedb.operator.ScanOperator;
 import ed.inf.adbs.blazedb.operator.SelectOperator;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.schema.Table;
 import org.junit.Before;
 import org.junit.After;
 import org.junit.Test;
@@ -63,7 +65,15 @@ public class ProjectOperatorTest {
     public void testProjectSingleColumn() {
         // Test projecting a single column (sid)
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0)); // sid is at index 0
+
+        // Create Column object for sid
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+        Column sidColumn = new Column();
+        sidColumn.setTable(table);
+        sidColumn.setColumnName("sid");
+        projectedColumns.add(sidColumn);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -93,7 +103,21 @@ public class ProjectOperatorTest {
     public void testProjectMultipleColumns() {
         // Test projecting multiple columns (sid and gpa)
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0, 3)); // sid and gpa
+
+        // Create Column objects for sid and gpa
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+
+        Column sidColumn = new Column();
+        sidColumn.setTable(table);
+        sidColumn.setColumnName("sid");
+        projectedColumns.add(sidColumn);
+
+        Column gpaColumn = new Column();
+        gpaColumn.setTable(table);
+        gpaColumn.setColumnName("gpa");
+        projectedColumns.add(gpaColumn);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -121,7 +145,21 @@ public class ProjectOperatorTest {
     public void testProjectReordering() {
         // Test projecting columns in a different order (gpa then sid)
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(3, 0)); // gpa then sid
+
+        // Create Column objects for gpa and sid (reversed order)
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+
+        Column gpaColumn = new Column();
+        gpaColumn.setTable(table);
+        gpaColumn.setColumnName("gpa");
+        projectedColumns.add(gpaColumn);
+
+        Column sidColumn = new Column();
+        sidColumn.setTable(table);
+        sidColumn.setColumnName("sid");
+        projectedColumns.add(sidColumn);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -147,7 +185,14 @@ public class ProjectOperatorTest {
             SelectOperator selectOp = new SelectOperator(scanOp, expr);
 
             // Project only sid
-            List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0)); // sid
+            List<Column> projectedColumns = new ArrayList<>();
+            Table table = new Table();
+            table.setName(TEST_TABLE);
+            Column sidColumn = new Column();
+            sidColumn.setTable(table);
+            sidColumn.setColumnName("sid");
+            projectedColumns.add(sidColumn);
+
             ProjectOperator projectOp = new ProjectOperator(selectOp, projectedColumns);
 
             // Should return two projected tuples (for students 2 and 4)
@@ -174,7 +219,21 @@ public class ProjectOperatorTest {
     public void testProjectDuplicates() {
         // Test projecting the same column multiple times
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0, 0)); // sid twice
+
+        // Create Column objects for sid (twice)
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+
+        Column sidColumn1 = new Column();
+        sidColumn1.setTable(table);
+        sidColumn1.setColumnName("sid");
+        projectedColumns.add(sidColumn1);
+
+        Column sidColumn2 = new Column();
+        sidColumn2.setTable(table);
+        sidColumn2.setColumnName("sid");
+        projectedColumns.add(sidColumn2);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -193,7 +252,21 @@ public class ProjectOperatorTest {
     public void testReset() {
         // Test reset functionality
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0, 3)); // sid and gpa
+
+        // Create Column objects for sid and gpa
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+
+        Column sidColumn = new Column();
+        sidColumn.setTable(table);
+        sidColumn.setColumnName("sid");
+        projectedColumns.add(sidColumn);
+
+        Column gpaColumn = new Column();
+        gpaColumn.setTable(table);
+        gpaColumn.setColumnName("gpa");
+        projectedColumns.add(gpaColumn);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -233,9 +306,9 @@ public class ProjectOperatorTest {
 
     @Test
     public void testProjectNoColumns() {
-        // Edge case: projecting no columns (should be illegal, but testing behavior)
+        // Edge case: projecting no columns
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(); // Empty list
+        List<Column> projectedColumns = new ArrayList<>(); // Empty list
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
@@ -248,9 +321,33 @@ public class ProjectOperatorTest {
 
     @Test
     public void testProjectEveryColumn() {
-        // Test projecting all columns in original order (should behave like no projection)
+        // Test projecting all columns in original order
         ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-        List<Integer> projectedColumns = new ArrayList<>(Arrays.asList(0, 1, 2, 3)); // All columns
+
+        // Create all Column objects
+        List<Column> projectedColumns = new ArrayList<>();
+        Table table = new Table();
+        table.setName(TEST_TABLE);
+
+        Column sidColumn = new Column();
+        sidColumn.setTable(table);
+        sidColumn.setColumnName("sid");
+        projectedColumns.add(sidColumn);
+
+        Column nameColumn = new Column();
+        nameColumn.setTable(table);
+        nameColumn.setColumnName("name");
+        projectedColumns.add(nameColumn);
+
+        Column ageColumn = new Column();
+        ageColumn.setTable(table);
+        ageColumn.setColumnName("age");
+        projectedColumns.add(ageColumn);
+
+        Column gpaColumn = new Column();
+        gpaColumn.setTable(table);
+        gpaColumn.setColumnName("gpa");
+        projectedColumns.add(gpaColumn);
 
         ProjectOperator projectOp = new ProjectOperator(scanOp, projectedColumns);
 
