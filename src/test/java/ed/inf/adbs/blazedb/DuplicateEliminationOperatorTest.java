@@ -123,7 +123,7 @@ public class DuplicateEliminationOperatorTest {
         }
 
         // Verify the distinct values of A
-        List<Integer> expectedValues = Arrays.asList(1, 2, 3, 4);
+        List<Integer> expectedValues = new ArrayList<>(Arrays.asList(1, 2, 3, 4));
         for (Tuple t : distinctTuples) {
             Integer value = t.getAttribute(0);
             assertTrue("Distinct values should include " + value,
