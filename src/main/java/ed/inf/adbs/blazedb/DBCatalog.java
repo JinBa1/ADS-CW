@@ -131,26 +131,57 @@ public class DBCatalog {
     }
 
     public String registerJoinSchema(String leftSchemaId, String rightSchemaId, String rightTableName) {
-        Map<String, Integer> leftSchema = leftSchemaId.startsWith("temp_")
+        // Get the source schemas
+        Map<String, Integer> leftSchemaMap = leftSchemaId.startsWith("temp_")
                 ? intermediateSchemata.get(leftSchemaId)
                 : dBSchemata.get(leftSchemaId);
 
-        Map<String, Integer> rightSchema = rightSchemaId.startsWith("temp_")
+        Map<String, Integer> rightSchemaMap = rightSchemaId.startsWith("temp_")
                 ? intermediateSchemata.get(rightSchemaId)
                 : dBSchemata.get(rightSchemaId);
 
-        if (leftSchema == null || rightSchema == null) {
+        if (leftSchemaMap == null || rightSchemaMap == null) {
             return null;
         }
 
-        int leftTupleSize = leftSchema.size();
+        // Determine the size of the left tuple for index adjustment
+        int leftTupleSize = 0;
+        for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
+            leftTupleSize = Math.max(leftTupleSize, entry.getValue() + 1);
+        }
 
-        Map<String, Integer> joinedSchema = new HashMap<>(leftSchema);
+        // Create a new joined schema
+        Map<String, Integer> joinedSchema = new HashMap<>();
 
-        for (Map.Entry<String, Integer> entry : rightSchema.entrySet()) {
-            String key = entry.getKey();
-            Integer adjustedIdx = entry.getValue() + leftTupleSize;
-            joinedSchema.put(key, adjustedIdx);
+        // Add left schema entries with proper formatting
+        String leftTableName = leftSchemaId;
+        if (leftSchemaId.startsWith("temp_")) {
+            // For intermediate schemas, keep original keys
+            for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
+                joinedSchema.put(entry.getKey(), entry.getValue());
+            }
+        } else {
+            // For base tables, format keys as "table.column"
+            for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
+                String columnName = entry.getKey();
+                String key = leftSchemaId + "." + columnName.toLowerCase();
+                joinedSchema.put(key, entry.getValue());
+            }
+        }
+
+        // Add right schema entries with proper formatting
+        if (rightSchemaId.startsWith("temp_")) {
+            // For intermediate schemas, keep original keys but adjust indices
+            for (Map.Entry<String, Integer> entry : rightSchemaMap.entrySet()) {
+                joinedSchema.put(entry.getKey(), entry.getValue() + leftTupleSize);
+            }
+        } else {
+            // For base tables, format keys as "table.column" and adjust indices
+            for (Map.Entry<String, Integer> entry : rightSchemaMap.entrySet()) {
+                String columnName = entry.getKey();
+                String key = rightSchemaId + "." + columnName.toLowerCase();
+                joinedSchema.put(key, entry.getValue() + leftTupleSize);
+            }
         }
 
         return registerIntermediateSchema(joinedSchema);
