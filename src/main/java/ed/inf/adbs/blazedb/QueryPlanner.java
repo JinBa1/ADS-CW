@@ -3,6 +3,7 @@ package ed.inf.adbs.blazedb;
 import ed.inf.adbs.blazedb.operator.*;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -35,6 +36,9 @@ public class QueryPlanner {
                     System.out.println("Order by: " + (select.getPlainSelect().getOrderByElements()).get(0).getExpression());
                 }
                 System.out.println("Distinct: " + select.getPlainSelect().getDistinct());
+                if (existGroupByOp(select)) {
+                    System.out.println("Group by: " + select.getPlainSelect().getGroupBy().getGroupByExpressions());
+                }
 
                 rootOp = new ScanOperator(firstTable.getName());
 
@@ -74,7 +78,28 @@ public class QueryPlanner {
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
 
-                if (existProjectOp(select)) {
+                // Handle GROUP BY and SUM before projection
+                if (existGroupByOp(select)) {
+                    List<Column> groupByColumns = extractGroupByColumns(select);
+                    List<Expression> sumExpressions = extractSumExpressions(select);
+                    List<Column> outputColumns = extractNonAggregateColumns(select);
+
+                    rootOp = new SumOperator(rootOp, groupByColumns, sumExpressions, outputColumns);
+                    System.out.println("++ Group by operator with SUM aggregation added.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                }
+                // Handle SUM without GROUP BY
+                else if (existSumAggregate(select)) {
+                    List<Column> groupByColumns = new ArrayList<>(); // Empty for no grouping
+                    List<Expression> sumExpressions = extractSumExpressions(select);
+                    List<Column> outputColumns = new ArrayList<>(); // Empty for no grouping
+
+                    rootOp = new SumOperator(rootOp, groupByColumns, sumExpressions, outputColumns);
+                    System.out.println("++ SUM aggregation operator added (no grouping).");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                }
+                // Handle regular projection (only if no GROUP BY or SUM or if SELECT *)
+                else if (existProjectOp(select)) {
                     rootOp = new ProjectOperator(rootOp, getProjectCols(select));
                     System.out.println("++ Project operator found.");
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
@@ -99,6 +124,71 @@ public class QueryPlanner {
 
 
         return rootOp;
+    }
+
+    private static boolean existGroupByOp(Select select) {
+        return select.getPlainSelect().getGroupBy() != null &&
+                !select.getPlainSelect().getGroupBy().getGroupByExpressions().isEmpty();
+    }
+
+    private static boolean existSumAggregate(Select select) {
+        List<SelectItem<?>> selectItems = select.getPlainSelect().getSelectItems();
+        for (SelectItem<?> item : selectItems) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Function) {
+                Function function = (Function) expr;
+                if ("SUM".equalsIgnoreCase(function.getName())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static List<Column> extractGroupByColumns(Select select) {
+        List<Column> groupByColumns = new ArrayList<>();
+        List<Expression> groupByExpressions = select.getPlainSelect().getGroupBy().getGroupByExpressions();
+
+        for (Expression expr : groupByExpressions) {
+            if (expr instanceof Column) {
+                groupByColumns.add((Column) expr);
+            } else {
+                throw new UnsupportedOperationException("Only column references are supported in GROUP BY");
+            }
+        }
+
+        return groupByColumns;
+    }
+
+    private static List<Expression> extractSumExpressions(Select select) {
+        List<Expression> sumExpressions = new ArrayList<>();
+        List<SelectItem<?>> selectItems = select.getPlainSelect().getSelectItems();
+
+        for (SelectItem<?> item : selectItems) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Function) {
+                Function function = (Function) expr;
+                if ("SUM".equalsIgnoreCase(function.getName())) {
+                    sumExpressions.add(function);
+                }
+            }
+        }
+
+        return sumExpressions;
+    }
+
+    private static List<Column> extractNonAggregateColumns(Select select) {
+        List<Column> nonAggregateColumns = new ArrayList<>();
+        List<SelectItem<?>> selectItems = select.getPlainSelect().getSelectItems();
+
+        for (SelectItem<?> item : selectItems) {
+            Expression expr = item.getExpression();
+            if (expr instanceof Column) {
+                nonAggregateColumns.add((Column) expr);
+            }
+        }
+
+        return nonAggregateColumns;
     }
 
     private static boolean existDistinctOp(Select select) {
