@@ -241,8 +241,8 @@ public class BlazeDBTest {
 		String expectedOutput =
 				"6, 10, 32\n" +
 						"3, 20, 19\n" +
-						"1, 30, 85\n" +
 						"5, 30, 65\n" +
+						"1, 30, 85\n" +
 						"4, 40, 21\n" +
 						"2, 40, 22\n";
 

@@ -38,6 +38,9 @@ public class SumOperator extends Operator {
     // Flag to track if all input has been processed
     private boolean processed;
 
+    private String intermediateSchemaId;
+    private boolean schemaRegistered = false;
+
     /**
      * Constructs a SumOperator with the specified child operator, grouping columns,
      * SUM expressions, and output columns.
@@ -178,12 +181,9 @@ public class SumOperator extends Operator {
                 if (sumExpr instanceof Function) {
                     Function function = (Function) sumExpr;
                     if ("SUM".equalsIgnoreCase(function.getName())) {
-
                         Expression innerExpr = (Expression) function.getParameters().get(0);
-
                         // Evaluate the expression for this tuple
                         int value = evaluator.evaluateValue(innerExpr, tuple);
-
                         // Add to the current aggregate value
                         aggregates.set(i, aggregates.get(i) + value);
                     }
@@ -194,6 +194,9 @@ public class SumOperator extends Operator {
         // Initialize iterator for returning results
         resultIterator = groupAggregates.entrySet().iterator();
         processed = true;
+
+        // Register our schema for downstream operators
+        registerResultSchema();
     }
 
     /**
@@ -224,6 +227,67 @@ public class SumOperator extends Operator {
      */
     @Override
     public String propagateSchemaId() {
+        // If we've registered our schema, return its ID
+        if (schemaRegistered) {
+            return intermediateSchemaId;
+        }
+        // Otherwise, return the child's schema ID
         return child.propagateSchemaId();
+    }
+
+
+    // New method to register the result schema
+    private void registerResultSchema() {
+        if (schemaRegistered) {
+            return;
+        }
+
+        // Create a new schema mapping that describes our output structure
+        Map<String, Integer> resultSchema = new HashMap<>();
+
+        int colIndex = 0;
+
+        // First, add the output columns from GROUP BY
+        if (!groupByColumns.isEmpty()) {
+            for (Column col : outputColumns) {
+                String tableName = col.getTable().getName();
+                String columnName = col.getColumnName().toLowerCase();
+                String key = tableName + "." + columnName;
+
+                resultSchema.put(key, colIndex++);
+            }
+        }
+
+        // Then add positions for the SUM aggregates
+        // For simplicity, we'll use a convention for aggregate column names
+        for (int i = 0; i < sumExpressions.size(); i++) {
+            // Use a unique name for the aggregate column
+            // (for ORDER BY to reference correctly)
+            Expression sumExpr = sumExpressions.get(i);
+            String aggregateKey;
+
+            if (sumExpr instanceof Function) {
+                Function function = (Function) sumExpr;
+                // Get the inner expression to create a meaningful name
+                Expression innerExpr = (Expression) function.getParameters().get(0);
+
+                // Use a naming convention that can be matched in ORDER BY
+                if (innerExpr instanceof Column) {
+                    Column col = (Column) innerExpr;
+                    String tableName = col.getTable().getName();
+                    String columnName = col.getColumnName().toLowerCase();
+                    aggregateKey = "SUM(" + tableName + "." + columnName + ")";
+                } else {
+                    // For other expressions like SUM(1) or SUM(A*B)
+                    aggregateKey = "SUM(" + i + ")";
+                }
+
+                resultSchema.put(aggregateKey, colIndex++);
+            }
+        }
+
+        // Register this schema with DBCatalog
+        intermediateSchemaId = DBCatalog.getInstance().registerIntermediateSchema(resultSchema);
+        schemaRegistered = true;
     }
 }
