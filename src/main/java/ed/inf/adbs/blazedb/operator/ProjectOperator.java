@@ -77,9 +77,19 @@ public class ProjectOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
+            // Debug print to see what we're looking for
+            System.out.println("ProjectOperator resolving: " + tableName + "." + columnName +
+                    " in schema " + schemaId);
+
             Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
-                throw new RuntimeException("Column " + tableName + ", " + columnName + " not found in schema " + schemaId);
+                // Print available columns to help debugging
+                Map<String, Integer> schemaMap = DBCatalog.getInstance().getDBSchemata(tableName);
+                System.out.println("Available columns in schema " + tableName + ": " +
+                        (schemaMap != null ? schemaMap.keySet() : "schema not found"));
+
+                throw new RuntimeException("Column " + tableName + "." + columnName +
+                        " not found in schema " + schemaId);
             }
 
             resolvedIndices.add(index);

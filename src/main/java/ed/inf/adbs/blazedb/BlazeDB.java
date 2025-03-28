@@ -35,6 +35,7 @@ public class BlazeDB {
 
 		// Just for demonstration, replace this function call with your logic
 //		parsingExample(inputFile);
+		DBCatalog.resetDBCatalog();
 		DBCatalog.initDBCatalog(databaseDir);
 		Operator rootOp = QueryPlanner.parseStatement(inputFile);
 		execute(rootOp, outputFile);

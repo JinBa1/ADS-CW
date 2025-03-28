@@ -41,6 +41,10 @@ public class DBCatalog {
         }
     }
 
+    public static void resetDBCatalog() {
+        instance = null;
+    }
+
     private void loadDBCatalog(String dBDirectory) {
         try {
             Path dBPath = Paths.get(dBDirectory);

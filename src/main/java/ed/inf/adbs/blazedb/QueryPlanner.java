@@ -45,9 +45,24 @@ public class QueryPlanner {
                 if (existJoinOp(select)) {
 
                     ExpressionPreprocessor preprocessor = new ExpressionPreprocessor();
-                    preprocessor.evaluate(select.getPlainSelect().getWhere());
-                    List<Expression> joinExpressions = preprocessor.getJoinExpressions();
-                    List<Expression> selectExpressions = preprocessor.getSelectExpressions();
+
+                    Expression whereExpression = select.getPlainSelect().getWhere();
+
+                    List<Expression> joinExpressions;
+                    List<Expression> selectExpressions;
+
+                    if (whereExpression != null) {
+                        preprocessor.evaluate(select.getPlainSelect().getWhere());
+                        joinExpressions = preprocessor.getJoinExpressions();
+                        selectExpressions = preprocessor.getSelectExpressions();
+                    } else {
+                        joinExpressions = new ArrayList<>();
+                        selectExpressions = new ArrayList<>();
+                    }
+
+
+
+
 
                     List<Table> tables = getTablesInOrder(select);
                     Set<String> joinedTableNames = new HashSet<>();

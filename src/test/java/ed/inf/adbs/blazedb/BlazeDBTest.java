@@ -351,6 +351,116 @@ public class BlazeDBTest {
 		String queryContent = "SELECT Course.H, SUM(Enrolled.K) FROM Course, Enrolled WHERE Course.E = Enrolled.J GROUP";
 	}
 
+	/**
+	 * Test all sample queries provided with the coursework.
+	 * This test runs all SQL queries in the samples/input directory and
+	 * compares the results with the expected outputs in samples/expected_output.
+	 */
+	@Test
+	public void testAllSampleQueries() throws IOException {
+		// Get absolute paths to avoid working directory issues
+		String currentDir = System.getProperty("user.dir");
+
+		// Paths for input queries, expected outputs, and test outputs
+		String samplesDir = currentDir + "/samples";
+		String dbDir = samplesDir + "/db";
+		String inputDir = samplesDir + "/input";
+		String expectedOutputDir = samplesDir + "/expected_output";
+		String testOutputDir = currentDir + "/test_output";
+
+		System.out.println("Using database directory: " + dbDir);
+		System.out.println("Using input directory: " + inputDir);
+
+		// Create output directory if it doesn't exist
+		Files.createDirectories(Paths.get(testOutputDir));
+
+		// Get all query files
+		File inputDirFile = new File(inputDir);
+		File[] queryFiles = inputDirFile.listFiles((dir, name) -> name.endsWith(".sql"));
+
+		if (queryFiles == null || queryFiles.length == 0) {
+			fail("No query files found in " + inputDir);
+		}
+
+		System.out.println("Found " + queryFiles.length + " query files to test");
+
+		// Process each query file
+		for (File queryFile : queryFiles) {
+			String queryName = queryFile.getName();
+			String baseName = queryName.substring(0, queryName.length() - 4); // Remove .sql
+
+			System.out.println("Testing query: " + queryName);
+
+			// Define paths
+			String queryPath = queryFile.getAbsolutePath();
+			String expectedOutputPath = expectedOutputDir + "/" + baseName + ".csv";
+			String outputPath = testOutputDir + "/" + baseName + ".csv";
+
+			// Check if expected output exists
+			if (!Files.exists(Paths.get(expectedOutputPath))) {
+				System.out.println("Warning: No expected output found for " + queryName + ", skipping");
+				continue;
+			}
+
+			// Run BlazeDB
+			BlazeDB.main(new String[] { dbDir, queryPath, outputPath });
+
+			// Verify the output
+			verifyOutputFiles(expectedOutputPath, outputPath, queryName, inputDir);
+		}
+	}
+
+	/**
+	 * Verifies that the actual output file matches the expected output file,
+	 * with special handling for ORDER BY queries.
+	 */
+	private void verifyOutputFiles(String expectedFilePath, String actualFilePath,
+								   String queryName, String inputDir) throws IOException {
+		// Read the query to check if it has ORDER BY
+		String queryPath = inputDir + "/" + queryName;
+		String queryContent = new String(Files.readAllBytes(Paths.get(queryPath)));
+		boolean hasOrderBy = queryContent.toUpperCase().contains("ORDER BY");
+
+		// Read expected and actual outputs
+		List<String> expectedLines = Files.readAllLines(Paths.get(expectedFilePath));
+		List<String> actualLines = Files.readAllLines(Paths.get(actualFilePath));
+
+		// Normalize lines (trim whitespace)
+		List<String> normalizedExpected = new ArrayList<>();
+		List<String> normalizedActual = new ArrayList<>();
+
+		for (String line : expectedLines) {
+			normalizedExpected.add(line.trim());
+		}
+
+		for (String line : actualLines) {
+			normalizedActual.add(line.trim());
+		}
+
+		// Check line count
+		assertEquals("Number of lines in output doesn't match expected for " + queryName,
+				normalizedExpected.size(), normalizedActual.size());
+
+		if (hasOrderBy) {
+			// For ORDER BY queries, check exact order
+			for (int i = 0; i < normalizedExpected.size(); i++) {
+				assertEquals("Line " + (i+1) + " doesn't match for " + queryName,
+						normalizedExpected.get(i), normalizedActual.get(i));
+			}
+		} else {
+			// For non-ORDER BY queries, sort and then compare
+			Collections.sort(normalizedExpected);
+			Collections.sort(normalizedActual);
+
+			for (int i = 0; i < normalizedExpected.size(); i++) {
+				assertEquals("Line content doesn't match (after sorting) for " + queryName,
+						normalizedExpected.get(i), normalizedActual.get(i));
+			}
+		}
+
+		System.out.println("Test passed for " + queryName);
+	}
+
 	// Helper methods
 
 	/**
