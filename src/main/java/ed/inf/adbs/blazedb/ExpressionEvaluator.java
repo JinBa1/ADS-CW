@@ -4,6 +4,7 @@ import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.schema.Column;
@@ -142,25 +143,31 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         int rightVal = valueStack.pop();
         int leftVal = valueStack.pop();
 
-        boolean result; // default value?
-
         if (expression instanceof EqualsTo) {
-            result = leftVal == rightVal;
+            boolean result = leftVal == rightVal;
+            resultStack.push(result);
         } else if (expression instanceof NotEqualsTo) {
-            result = leftVal != rightVal;
+            boolean result = leftVal != rightVal;
+            resultStack.push(result);
         } else if (expression instanceof GreaterThan) {
-            result = leftVal > rightVal;
+            boolean result = leftVal > rightVal;
+            resultStack.push(result);
         } else if (expression instanceof GreaterThanEquals) {
-            result = leftVal >= rightVal;
+            boolean result = leftVal >= rightVal;
+            resultStack.push(result);
         } else if (expression instanceof MinorThan) {
-            result = leftVal < rightVal;
+            boolean result = leftVal < rightVal;
+            resultStack.push(result);
         } else if (expression instanceof MinorThanEquals) {
-            result = leftVal <= rightVal;
+            boolean result = leftVal <= rightVal;
+            resultStack.push(result);
+        } else if (expression instanceof Multiplication) {
+            // For multiplication, we calculate the product and push it to valueStack
+            // (not resultStack since it's not a boolean result)
+            valueStack.push(leftVal * rightVal);
         } else {
             throw new UnsupportedOperationException("Unsupported binary expression: " + expression.getClass().getName());
         }
-
-        resultStack.push(result);
     }
 
 
