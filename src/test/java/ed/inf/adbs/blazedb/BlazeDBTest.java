@@ -348,7 +348,62 @@ public class BlazeDBTest {
 	@Test
 	public void testGroupByWithJoin() throws IOException {
 		String queryName = "test_group_by_with_join";
-		String queryContent = "SELECT Course.H, SUM(Enrolled.K) FROM Course, Enrolled WHERE Course.E = Enrolled.J GROUP";
+		String queryContent = "SELECT Course.H, SUM(Enrolled.K) FROM Course, Enrolled WHERE Course.E = Enrolled.J GROUP BY Course.H;";
+
+		// The expected output based on the course and enrollment data:
+		// Department 1: sum of grades 85+91 = 176
+		// Department 2: sum of grades 92+78 = 170
+		// Department 3: sum of grades 84+65 = 149
+		String expectedOutput =
+				"1, 176\n" +
+						"2, 170\n" +
+						"3, 149\n";
+
+		runTest(queryName, queryContent, expectedOutput, false); // Order might vary
+	}
+
+	@Test
+	public void testSelectionPushdownOptimization() throws IOException {
+		// This test demonstrates a query that benefits from selection pushdown
+		// We use a query that joins Student and Enrolled with selective conditions on both sides
+
+		String queryName = "test_selection_pushdown";
+		String queryContent = "SELECT Student.A, Student.B, Enrolled.J, Enrolled.K FROM Student, Enrolled " +
+				"WHERE Student.A = Enrolled.I AND Student.D > 30 AND Enrolled.K > 80;";
+
+		// Expected output: Only students with D > 30 (GPA > 3.0) and enrollments with K > 80 (grade > 80)
+		// From our test data this should return:
+		// Student 1 (D=30) with enrollments to courses 101 (grade 85) and 102 (grade 92)
+		// Student 2 (D=40) with enrollments to courses 101 (grade 91) and 103 (grade 84)
+		String expectedOutput =
+						"2, 30, 101, 91\n" +
+						"2, 30, 103, 84\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+
+		// Note: In a real-world scenario, we would measure performance metrics here
+		// to show the difference between optimized and unoptimized plans.
+		// For simplicity and consistency with your existing tests, we just verify correctness.
+	}
+
+	@Test
+	public void testSelectPushdownAfterJoin() throws IOException {
+		String queryName = "test_select_pushdown_after_join";
+
+		// This query uses a legal predicate that references Student and Enrolled
+		String queryContent = "SELECT Student.A, Student.B, Course.F, Enrolled.K " +
+				"FROM Student, Enrolled, Course " +
+				"WHERE Student.A = Enrolled.I AND Enrolled.J = Course.E " +
+				"AND Student.D = 40 AND Enrolled.K > 80;";
+
+		// Expected output: Only students with D=40 (Students 2 and 4)
+		// AND enrollments with K>80 (matches for Students 1, 2, 3)
+		// The intersection is just Student 2 with grades 91 and 84
+		String expectedOutput =
+				"2, 30, 201, 91\n" +
+						"2, 30, 203, 84\n";
+
+		runTest(queryName, queryContent, expectedOutput);
 	}
 
 	/**

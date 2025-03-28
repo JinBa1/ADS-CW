@@ -13,10 +13,7 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.*;
 
 import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class QueryPlanner {
 
@@ -43,55 +40,144 @@ public class QueryPlanner {
                 rootOp = new ScanOperator(firstTable.getName());
 
                 if (existJoinOp(select)) {
+                    if (Constants.useSelectPushDown) {
+                        ExpressionPreprocessor preprocessor = new ExpressionPreprocessor();
 
-                    ExpressionPreprocessor preprocessor = new ExpressionPreprocessor();
+                        Expression whereExpr = select.getPlainSelect().getWhere();
+                        List<Expression> joinExpressions = new ArrayList<>();
+                        List<Expression> selectExpressions = new ArrayList<>();
+                        if (whereExpr != null) {
+                            preprocessor.evaluate(whereExpr);
+                            joinExpressions = preprocessor.getJoinExpressions();
+                            selectExpressions = preprocessor.getSelectExpressions();
+                        }
 
-                    Expression whereExpression = select.getPlainSelect().getWhere();
+                        // Categorize selection expressions by the tables they reference
+                        Map<Set<String>, List<Expression>> categorizedSelections =
+                                categorizeSelectionsByTables(selectExpressions);
 
-                    List<Expression> joinExpressions;
-                    List<Expression> selectExpressions;
+                        List<Table> tables = getTablesInOrder(select);
+                        Set<String> joinedTableNames = new HashSet<>();
 
-                    if (whereExpression != null) {
-                        preprocessor.evaluate(select.getPlainSelect().getWhere());
-                        joinExpressions = preprocessor.getJoinExpressions();
-                        selectExpressions = preprocessor.getSelectExpressions();
+                        // First table in the FROM clause
+                        String firstTableName = firstTable.getName();
+                        joinedTableNames.add(firstTableName);
+
+                        // Apply single-table selection to first table if applicable
+                        Set<String> firstTableSet = new HashSet<>();
+                        firstTableSet.add(firstTableName);
+                        if (categorizedSelections.containsKey(firstTableSet)) {
+                            List<Expression> firstTableSelections = categorizedSelections.get(firstTableSet);
+                            if (!firstTableSelections.isEmpty()) {
+                                rootOp = new SelectOperator(rootOp, combineExpression(firstTableSelections));
+                                System.out.println("++ Applied selection to first table: " + firstTableName);
+                            }
+                        }
+
+                        for (Table table : tables) {
+                            // Create scan operator for current table
+                            Operator rightOp = new ScanOperator(table.getName());
+
+                            // Apply single-table selection to this table if applicable
+                            Set<String> currentTableSet = new HashSet<>();
+                            currentTableSet.add(table.getName());
+                            if (categorizedSelections.containsKey(currentTableSet)) {
+                                List<Expression> tableSelections = categorizedSelections.get(currentTableSet);
+                                if (!tableSelections.isEmpty()) {
+                                    rightOp = new SelectOperator(rightOp, combineExpression(tableSelections));
+                                    System.out.println("++ Applied selection to table: " + table.getName());
+                                }
+                            }
+
+                            // Find join condition
+                            Expression joinCondition = findJoinCondition(joinExpressions, joinedTableNames, table);
+
+                            // Perform join
+                            rootOp = new JoinOperator(rootOp, rightOp, joinCondition);
+                            joinedTableNames.add(table.getName());
+
+                            System.out.println("++ Join plan created with tables: " + joinedTableNames);
+                            System.out.println("   Join condition: " + joinCondition);
+
+                            // Check if we can apply any multi-table selections that involve
+                            // only the tables we've joined so far
+                            for (Set<String> tableSet : categorizedSelections.keySet()) {
+                                // Check if all referenced tables are in the joinedTableNames
+                                if (joinedTableNames.containsAll(tableSet) && tableSet.size() > 1) {
+                                    List<Expression> applicableSelections = categorizedSelections.get(tableSet);
+                                    if (!applicableSelections.isEmpty()) {
+                                        rootOp = new SelectOperator(rootOp, combineExpression(applicableSelections));
+                                        System.out.println("++ Applied multi-table selection after joining " + tableSet);
+
+                                        // Remove these selections to avoid applying them again
+                                        categorizedSelections.put(tableSet, new ArrayList<>());
+                                    }
+                                }
+                            }
+                        }
+
+                        // Apply any remaining multi-table selections that couldn't be pushed down
+                        // (This shouldn't be needed with our implementation, but added for safety)
+                        List<Expression> remainingSelections = new ArrayList<>();
+                        for (List<Expression> expressions : categorizedSelections.values()) {
+                            remainingSelections.addAll(expressions);
+                        }
+
+                        if (!remainingSelections.isEmpty()) {
+                            rootOp = new SelectOperator(rootOp, combineExpression(remainingSelections));
+                            System.out.println("++ Applied remaining selections after all joins");
+                        }
                     } else {
-                        joinExpressions = new ArrayList<>();
-                        selectExpressions = new ArrayList<>();
+                        ExpressionPreprocessor preprocessor = new ExpressionPreprocessor();
+
+                        Expression whereExpression = select.getPlainSelect().getWhere();
+
+                        List<Expression> joinExpressions;
+                        List<Expression> selectExpressions;
+
+                        if (whereExpression != null) {
+                            preprocessor.evaluate(select.getPlainSelect().getWhere());
+                            joinExpressions = preprocessor.getJoinExpressions();
+                            selectExpressions = preprocessor.getSelectExpressions();
+                        } else {
+                            joinExpressions = new ArrayList<>();
+                            selectExpressions = new ArrayList<>();
+                        }
+
+
+
+
+
+                        List<Table> tables = getTablesInOrder(select);
+                        Set<String> joinedTableNames = new HashSet<>();
+                        joinedTableNames.add(firstTable.getName()); // the first table in the from clause
+
+                        for (Table table : tables) {
+                            Expression joinCondition = findJoinCondition(joinExpressions, joinedTableNames, table);
+
+                            Operator rightOp = new ScanOperator(table.getName());
+                            rootOp = new JoinOperator(rootOp, rightOp, joinCondition);
+
+                            joinedTableNames.add(table.getName());
+
+                            System.out.println("++ Join plan created with tables: " + joinedTableNames);
+                            System.out.println("   Join condition: " + joinCondition);
+                            System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                        }
+
+                        if (!selectExpressions.isEmpty()) {
+                            rootOp = new SelectOperator(rootOp, combineExpression(selectExpressions));
+                            System.out.println("++ Selection needed.");
+                            System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+                        }
                     }
-
-
-
-
-
-                    List<Table> tables = getTablesInOrder(select);
-                    Set<String> joinedTableNames = new HashSet<>();
-                    joinedTableNames.add(firstTable.getName()); // the first table in the from clause
-
-                    for (Table table : tables) {
-                        Expression joinCondition = findJoinCondition(joinExpressions, joinedTableNames, table);
-
-                        Operator rightOp = new ScanOperator(table.getName());
-                        rootOp = new JoinOperator(rootOp, rightOp, joinCondition);
-
-                        joinedTableNames.add(table.getName());
-
-                        System.out.println("++ Join plan created with tables: " + joinedTableNames);
-                        System.out.println("   Join condition: " + joinCondition);
-                        System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
-                    }
-
-                    if (!selectExpressions.isEmpty()) {
-                        rootOp = new SelectOperator(rootOp, combineExpression(selectExpressions));
-                        System.out.println("++ Selection needed.");
-                        System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
-                    }
-
                 } else if (existSelectOp(select)) {
+                    // For queries without joins, this branch remains unchanged
                     rootOp = new SelectOperator(rootOp, select.getPlainSelect().getWhere());
                     System.out.println("++ No joins, but select operator found.");
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
+
 
                 // Handle GROUP BY and SUM before projection
                 if (existGroupByOp(select)) {
@@ -311,21 +397,21 @@ public class QueryPlanner {
     }
 
     private static Set<String> extractTableNames(Expression expression) {
-        Set<String> tableNames = new HashSet<>();
+        final Set<String> tableNames = new HashSet<>();
 
         if (expression instanceof BinaryExpression) {
-            Expression[] leftNRight = new Expression[2];
-            leftNRight[0] = ((BinaryExpression) expression).getLeftExpression();
-            leftNRight[1] = ((BinaryExpression) expression).getRightExpression();
+            Expression left = ((BinaryExpression) expression).getLeftExpression();
+            Expression right = ((BinaryExpression) expression).getRightExpression();
 
-            for (Expression value : leftNRight) {
-                if (value instanceof Column) {
-                    tableNames.add(((Column) value).getTable().getName());
-                }
+            tableNames.addAll(extractTableNames(left));
+            tableNames.addAll(extractTableNames(right));
+        } else if (expression instanceof Column) {
+            Column column = (Column) expression;
+            if (column.getTable() != null && column.getTable().getName() != null) {
+                tableNames.add(column.getTable().getName());
             }
-        } else {
-            throw new UnsupportedOperationException("Unsupported binary expression: " + expression.getClass().getName());
         }
+        // Add other expression types as needed
 
         return tableNames;
     }
@@ -342,6 +428,17 @@ public class QueryPlanner {
         }
 
         return result;
+    }
+
+    private static Map<Set<String>, List<Expression>> categorizeSelectionsByTables(List<Expression> selectExpressions) {
+        Map<Set<String>, List<Expression>> categorizedSelections = new HashMap<>();
+
+        for (Expression expr : selectExpressions) {
+            Set<String> tables = extractTableNames(expr);
+            categorizedSelections.computeIfAbsent(tables, k -> new ArrayList<>()).add(expr);
+        }
+
+        return categorizedSelections;
     }
 
 }
