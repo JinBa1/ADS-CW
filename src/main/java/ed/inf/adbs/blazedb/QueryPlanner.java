@@ -223,6 +223,17 @@ public class QueryPlanner {
             e.printStackTrace();
         }
 
+        if (Constants.useQueryOptimization) {  // Add this constant
+            System.out.println("Applying query plan optimization...");
+            System.out.println("Original plan:");
+            printQueryPlan(rootOp, 0);
+
+            rootOp = QueryPlanOptimizer.optimize(rootOp);
+
+            System.out.println("Optimized plan:");
+            printQueryPlan(rootOp, 0);
+        }
+
 
         return rootOp;
     }
@@ -439,6 +450,39 @@ public class QueryPlanner {
         }
 
         return categorizedSelections;
+    }
+
+    /**
+     * Prints a query plan tree for debugging purposes.
+     * @param op The root operator of the plan
+     * @param indent The indentation level
+     */
+    private static void printQueryPlan(Operator op, int indent) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < indent; i++) {
+            sb.append("  ");
+        }
+        sb.append("- ").append(op.getClass().getSimpleName());
+
+        // Add operator-specific details
+        if (op instanceof ScanOperator) {
+            // Cast and get table name
+        } else if (op instanceof SelectOperator) {
+            // Cast and get condition
+        } // etc.
+
+        System.out.println(sb.toString());
+
+        // Print child operators
+        if (op.hasChild()) {
+            printQueryPlan(op.getChild(), indent + 1);
+        }
+
+        // Handle JoinOperator's outer child
+        if (op instanceof JoinOperator) {
+            JoinOperator joinOp = (JoinOperator) op;
+            printQueryPlan(joinOp.getOuterChild(), indent + 1);
+        }
     }
 
 }

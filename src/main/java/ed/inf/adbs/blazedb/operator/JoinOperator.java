@@ -106,4 +106,8 @@ public class JoinOperator extends Operator {
     public Operator getOuterChild() {
         return outerChild;
     }
+
+    public void setOuterChild(Operator outerChild) {
+        this.outerChild = outerChild;
+    }
 }

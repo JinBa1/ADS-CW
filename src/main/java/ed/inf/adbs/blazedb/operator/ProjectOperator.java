@@ -126,4 +126,8 @@ public class ProjectOperator extends Operator {
         intermediateSchemaId = DBCatalog.getInstance().registerIntermediateSchema(projectedSchema);
         schemaRegistered = true;
     }
+
+    public List<Column> getColumns() {
+        return columns;
+    }
 }

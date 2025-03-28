@@ -44,4 +44,8 @@ public class SelectOperator extends Operator {
     public String propagateSchemaId() {
         return child.propagateSchemaId();
     }
+
+    public Expression getCondition() {
+        return expression;
+    }
 }

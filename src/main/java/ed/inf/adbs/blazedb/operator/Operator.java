@@ -43,4 +43,8 @@ public abstract class Operator {
     public boolean hasChild() {
         return child != null;
     }
+
+    public void setChild(Operator child) {
+        this.child = child;
+    }
 }

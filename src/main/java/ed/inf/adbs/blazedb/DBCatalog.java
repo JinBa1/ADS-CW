@@ -134,6 +134,13 @@ public class DBCatalog {
         return schema.get(key);
     }
 
+    public Map<String, Integer> getIntermediateSchema(String schemaId) {
+        if (!intermediateSchemata.containsKey(schemaId)) {
+            return null;
+        }
+        return intermediateSchemata.get(schemaId);
+    }
+
     public String registerJoinSchema(String leftSchemaId, String rightSchemaId, String rightTableName) {
         // Get the source schemas
         Map<String, Integer> leftSchemaMap = leftSchemaId.startsWith("temp_")
