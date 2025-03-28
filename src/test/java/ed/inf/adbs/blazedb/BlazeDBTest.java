@@ -177,6 +177,27 @@ public class BlazeDBTest {
 		runTest(queryName, queryContent, expectedOutput);
 	}
 
+	@Test
+	public void testComplexJoinCondition() throws IOException {
+		String queryName = "test_complex_join_condition";
+
+		// This query uses a multi-table join condition that would produce results
+		String queryContent = "SELECT Student.A, Student.B, Course.F, Enrolled.K " +
+				"FROM Student, Enrolled, Course " +
+				"WHERE Student.A = Enrolled.I AND Enrolled.J = Course.E " +
+				"AND Student.D = 40 AND Course.H = 3;";
+
+		// Expected: Students with D=40 (Student 2 and 4) joined with Courses with H=3 (Course 103, 104)
+		// But only where the Enrolled table connects them
+		// Student 2 is enrolled in Course 103 (matching H=3)
+		// Student 4 is enrolled in Course 104 (matching H=3)
+		String expectedOutput =
+				"2, 30, 203, 84\n" +
+						"4, 40, 204, 65\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
 	/**
 	 * Test a join with a complex WHERE clause.
 	 */
@@ -405,6 +426,172 @@ public class BlazeDBTest {
 
 		runTest(queryName, queryContent, expectedOutput);
 	}
+
+	/**
+	 * Test projection pushdown with a simple query that joins two tables
+	 * but only needs a subset of columns.
+	 */
+	@Test
+	public void testProjectionPushdown() throws IOException {
+		String queryName = "test_projection_pushdown";
+		String queryContent = "SELECT Student.A, Enrolled.K FROM Student, Enrolled WHERE Student.A = Enrolled.I;";
+
+		// Expected output has only the two projected columns (Student.A and Enrolled.K)
+		String expectedOutput =
+				"1, 85\n" +
+						"1, 92\n" +
+						"2, 91\n" +
+						"2, 84\n" +
+						"3, 78\n" +
+						"4, 65\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+
+		// Note: We can't directly verify that projection was pushed down in a unit test,
+		// but we can check that the correct results are produced, and the optimization
+		// would be visible in console output during execution
+	}
+
+	/**
+	 * Test projection pushdown with a more complex query involving
+	 * selection, join, and a subset of columns from multiple tables.
+	 */
+	@Test
+	public void testProjectionPushdownWithSelection() throws IOException {
+		String queryName = "test_projection_pushdown_with_selection";
+		String queryContent = "SELECT Student.A, Student.C, Enrolled.K FROM Student, Enrolled " +
+				"WHERE Student.A = Enrolled.I AND Student.D > 20 AND Enrolled.K > 80;";
+
+		// Expected output has only Student.A, Student.C, Enrolled.K
+		// with the filters Student.D > 20 AND Enrolled.K > 80
+		String expectedOutput =
+				"1, 85, 85\n" +
+						"1, 85, 92\n" +
+						"2, 22, 91\n" +
+						"2, 22, 84\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
+	/**
+	 * Test projection pushdown with a query that includes ORDER BY
+	 * on a column that is also in the final projection list.
+	 */
+	@Test
+	public void testProjectionPushdownWithOrderBy() throws IOException {
+		String queryName = "test_projection_pushdown_with_order_by";
+		String queryContent = "SELECT Student.A, Student.D, Enrolled.K FROM Student, Enrolled " +
+				"WHERE Student.A = Enrolled.I ORDER BY Student.D;";
+
+		// Now Student.D is in both the SELECT list and ORDER BY clause
+		String expectedOutput =
+						"3, 20, 78\n" +   // Student.D = 20
+						"1, 30, 85\n" +   // Student.D = 30
+						"1, 30, 92\n" +
+						"2, 40, 91\n" +   // Student.D = 40
+						"2, 40, 84\n" +
+						"4, 40, 65\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
+	/**
+	 * Test projection pushdown with GROUP BY and aggregation
+	 */
+	@Test
+	public void testProjectionPushdownWithGroupByAndSum() throws IOException {
+		String queryName = "test_projection_pushdown_with_group_by";
+		String queryContent = "SELECT Student.D, SUM(Enrolled.K) FROM Student, Enrolled " +
+				"WHERE Student.A = Enrolled.I GROUP BY Student.D;";
+
+		// Student.D is in the projection and GROUP BY
+		// Student.A is needed for the join condition but not in final result
+		// Enrolled.K is needed for SUM, Enrolled.I for the join condition
+		String expectedOutput =
+				"20, 78\n" +
+						"30, 177\n" +
+						"40, 240\n";
+
+		runTest(queryName, queryContent, expectedOutput, false); // Order might vary
+	}
+
+	/**
+	 * Test projection pushdown with a three-way join
+	 * where many columns can be eliminated early
+	 */
+	@Test
+	public void testProjectionPushdownWithThreeWayJoin() throws IOException {
+		String queryName = "test_projection_pushdown_with_three_way_join";
+		String queryContent = "SELECT Student.A, Course.F FROM Student, Enrolled, Course " +
+				"WHERE Student.A = Enrolled.I AND Enrolled.J = Course.E AND Student.D > 30;";
+
+		// Student.A and Course.F in projection
+		// Student.D for selection
+		// Enrolled.I and Enrolled.J for join conditions
+		// Course.E for join condition
+		String expectedOutput =
+				"2, 201\n" +
+						"2, 203\n" +
+						"4, 204\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
+	/**
+	 * Test that projection pushdown doesn't drop columns needed for selection
+	 */
+	@Test
+	public void testProjectionPushdownPreservesSelectionColumns() throws IOException {
+		String queryName = "test_push_preserves_selection";
+		String queryContent = "SELECT Student.A FROM Student WHERE Student.D > 30 AND Student.C < 30;";
+
+		// Student.A is in projection
+		// Student.D and Student.C are needed for selection
+		String expectedOutput =
+				"2\n" +
+						"4\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
+	/**
+	 * Test that projection pushdown correctly handles SELECT *
+	 */
+	@Test
+	public void testProjectionPushdownWithSelectStar() throws IOException {
+		String queryName = "test_push_with_select_star";
+		String queryContent = "SELECT * FROM Student, Enrolled WHERE Student.A = Enrolled.I AND Student.D > 30;";
+
+		// Should keep all columns since it's SELECT *
+		String expectedOutput =
+				"2, 30, 22, 40, 2, 101, 91\n" +
+						"2, 30, 22, 40, 2, 103, 84\n" +
+						"4, 40, 21, 40, 4, 104, 65\n";
+
+		runTest(queryName, queryContent, expectedOutput);
+	}
+
+	/**
+	 * Test with SUM aggregation on a calculated expression
+	 */
+	@Test
+	public void testProjectionPushdownWithExpressionAggregation() throws IOException {
+		String queryName = "test_push_with_expression_aggregation";
+		String queryContent = "SELECT Student.D, SUM(Student.C*Enrolled.K) FROM Student, Enrolled " +
+				"WHERE Student.A = Enrolled.I GROUP BY Student.D;";
+
+		// Student.D for GROUP BY and projection
+		// Student.C and Enrolled.K for SUM expression
+		// Student.A and Enrolled.I for join condition
+		String expectedOutput =
+				"20, 1482\n" +   // Student 3: 19 * 78 = 1482
+						"40, 5215\n" +  // Student 1: 85 * (85 + 92) = 15045
+						"30, 15045\n";    // Student 2: 22 * (91 + 84) + Student 4: 21 * 65 = 2919
+
+		runTest(queryName, queryContent, expectedOutput, false); // Order might vary
+	}
+
+
 
 	/**
 	 * Test all sample queries provided with the coursework.
