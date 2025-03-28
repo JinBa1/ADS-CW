@@ -462,14 +462,57 @@ public class QueryPlanner {
 
         // Collect all column requirements
         List<Map<String, Set<Column>>> requirements = new ArrayList<>();
-        requirements.add(ColumnDependencyAnalyzer.getOutputColumns(plainSelect));
-        requirements.add(ColumnDependencyAnalyzer.getOrderByColumns(plainSelect));
-        requirements.add(ColumnDependencyAnalyzer.getGroupByColumns(plainSelect));
-        requirements.add(ColumnDependencyAnalyzer.getJoinColumns(plainSelect));
-        requirements.add(ColumnDependencyAnalyzer.getSelectionColumns(plainSelect));
+
+        Map<String, Set<Column>> outputColumns = ColumnDependencyAnalyzer.getOutputColumns(plainSelect);
+        requirements.add(outputColumns);
+        System.out.println("Output columns by table:");
+        printColumnRequirements(outputColumns);
+
+        Map<String, Set<Column>> orderByColumns = ColumnDependencyAnalyzer.getOrderByColumns(plainSelect);
+        requirements.add(orderByColumns);
+        System.out.println("OrderBy columns by table:");
+        printColumnRequirements(orderByColumns);
+
+        Map<String, Set<Column>> groupByColumns = ColumnDependencyAnalyzer.getGroupByColumns(plainSelect);
+        requirements.add(groupByColumns);
+        System.out.println("GroupBy columns by table:");
+        printColumnRequirements(groupByColumns);
+
+        Map<String, Set<Column>> joinColumns = ColumnDependencyAnalyzer.getJoinColumns(plainSelect);
+        requirements.add(joinColumns);
+        System.out.println("Join columns by table:");
+        printColumnRequirements(joinColumns);
+
+        Map<String, Set<Column>> selectionColumns = ColumnDependencyAnalyzer.getSelectionColumns(plainSelect);
+        requirements.add(selectionColumns);
+        System.out.println("Selection columns by table:");
+        printColumnRequirements(selectionColumns);
 
         // Merge all requirements
-        return ColumnDependencyAnalyzer.mergeColumnRequirements(requirements);
+        Map<String, Set<Column>> mergedRequirements = ColumnDependencyAnalyzer.mergeColumnRequirements(requirements);
+        System.out.println("MERGED column requirements by table:");
+        printColumnRequirements(mergedRequirements);
+
+        return mergedRequirements;
+    }
+
+    // Helper method to print column requirements
+    private static void printColumnRequirements(Map<String, Set<Column>> requirements) {
+        for (Map.Entry<String, Set<Column>> entry : requirements.entrySet()) {
+            String tableName = entry.getKey();
+            Set<Column> columns = entry.getValue();
+
+            if (columns == null) {
+                System.out.println("  " + tableName + ": ALL COLUMNS");
+            } else if (columns.isEmpty()) {
+                System.out.println("  " + tableName + ": NO COLUMNS");
+            } else {
+                System.out.println("  " + tableName + ": " + columns.size() + " columns");
+                for (Column col : columns) {
+                    System.out.println("    - " + col.getTable().getName() + "." + col.getColumnName());
+                }
+            }
+        }
     }
 
     // Add this helper method for applying early projection
@@ -477,8 +520,10 @@ public class QueryPlanner {
                                                  Map<String, Set<Column>> columnRequirements) {
         Set<Column> requiredColumns = columnRequirements.get(tableName);
 
+
         // If null or empty or SELECT *, we need all columns (no projection)
         if (requiredColumns == null || requiredColumns.isEmpty()) {
+            System.out.println("++ No early projection for " + tableName + " (keeping all columns)");
             return scanOp;
         }
 
