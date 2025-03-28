@@ -37,7 +37,13 @@ public class QueryPlanner {
                     System.out.println("Group by: " + select.getPlainSelect().getGroupBy().getGroupByExpressions());
                 }
 
+
                 rootOp = new ScanOperator(firstTable.getName());
+                Map<String, Set<Column>> columnRequirements;
+                if(Constants.useProjectPushDown) {
+                    columnRequirements = getColumnRequirements(select);
+                    rootOp = applyEarlyProjection(rootOp, firstTable.getName(), columnRequirements);
+                }
 
                 if (existJoinOp(select)) {
                     if (Constants.useSelectPushDown) {
@@ -77,6 +83,12 @@ public class QueryPlanner {
                         for (Table table : tables) {
                             // Create scan operator for current table
                             Operator rightOp = new ScanOperator(table.getName());
+
+
+                            if(Constants.useProjectPushDown) {
+                                // Add early projection
+                                rightOp = applyEarlyProjection(rightOp, table.getName(), columnRequirements);
+                            }
 
                             // Apply single-table selection to this table if applicable
                             Set<String> currentTableSet = new HashSet<>();
@@ -144,10 +156,6 @@ public class QueryPlanner {
                             selectExpressions = new ArrayList<>();
                         }
 
-
-
-
-
                         List<Table> tables = getTablesInOrder(select);
                         Set<String> joinedTableNames = new HashSet<>();
                         joinedTableNames.add(firstTable.getName()); // the first table in the from clause
@@ -156,6 +164,11 @@ public class QueryPlanner {
                             Expression joinCondition = findJoinCondition(joinExpressions, joinedTableNames, table);
 
                             Operator rightOp = new ScanOperator(table.getName());
+
+                            if(Constants.useProjectPushDown) {
+                                rightOp = applyEarlyProjection(rightOp, table.getName(), columnRequirements);
+                            }
+
                             rootOp = new JoinOperator(rootOp, rightOp, joinCondition);
 
                             joinedTableNames.add(table.getName());
@@ -202,7 +215,7 @@ public class QueryPlanner {
                 // Handle regular projection (only if no GROUP BY or SUM or if SELECT *)
                 else if (existProjectOp(select)) {
                     rootOp = new ProjectOperator(rootOp, getProjectCols(select));
-                    System.out.println("++ Project operator found.");
+                    System.out.println("++ Final project operator applied");
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
                 }
 
@@ -439,6 +452,44 @@ public class QueryPlanner {
         }
 
         return categorizedSelections;
+    }
+
+
+
+    // Add this helper method for computing column requirements
+    private static Map<String, Set<Column>> getColumnRequirements(Select select) {
+        PlainSelect plainSelect = select.getPlainSelect();
+
+        // Collect all column requirements
+        List<Map<String, Set<Column>>> requirements = new ArrayList<>();
+        requirements.add(ColumnDependencyAnalyzer.getOutputColumns(plainSelect));
+        requirements.add(ColumnDependencyAnalyzer.getOrderByColumns(plainSelect));
+        requirements.add(ColumnDependencyAnalyzer.getGroupByColumns(plainSelect));
+        requirements.add(ColumnDependencyAnalyzer.getJoinColumns(plainSelect));
+        requirements.add(ColumnDependencyAnalyzer.getSelectionColumns(plainSelect));
+
+        // Merge all requirements
+        return ColumnDependencyAnalyzer.mergeColumnRequirements(requirements);
+    }
+
+    // Add this helper method for applying early projection
+    private static Operator applyEarlyProjection(Operator scanOp, String tableName,
+                                                 Map<String, Set<Column>> columnRequirements) {
+        Set<Column> requiredColumns = columnRequirements.get(tableName);
+
+        // If null or empty or SELECT *, we need all columns (no projection)
+        if (requiredColumns == null || requiredColumns.isEmpty()) {
+            return scanOp;
+        }
+
+        System.out.println("++ Applying early projection to table " + tableName +
+                " - keeping " + requiredColumns.size() + " columns");
+
+        // Create list of required columns for projection
+        List<Column> projectionColumns = new ArrayList<>(requiredColumns);
+
+        // Create the projection operator
+        return new ProjectOperator(scanOp, projectionColumns);
     }
 
 }
