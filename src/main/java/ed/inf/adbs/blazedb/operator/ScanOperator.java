@@ -47,6 +47,7 @@ public class ScanOperator extends Operator {
                 attributes.add(Integer.parseInt(value.trim()));
             }
 
+            tupleCounter ++;
             return new Tuple(attributes);
         } catch (IOException e) {
             System.err.println("Error reading tuple: " + e.getMessage());

@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.BufferedWriter;
 import java.io.IOException;
 
+import ed.inf.adbs.blazedb.operator.JoinOperator;
 import ed.inf.adbs.blazedb.operator.ScanOperator;
 import ed.inf.adbs.blazedb.operator.SelectOperator;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -89,9 +90,28 @@ public class BlazeDB {
 
 			// Close the writer
 			writer.close();
+
+			reportOperatorCounts(root);
 		}
 		catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static void reportOperatorCounts(Operator op) {
+		if (op == null) return;
+
+		System.out.println(op.getClass().getSimpleName() + ": " + op.getTupleCounter() + " tuples produced.");
+
+		// Recursive call to children if exist
+		if (op.hasChild()) {
+			reportOperatorCounts(op.getChild());
+		}
+
+		if (op instanceof JoinOperator) {
+			reportOperatorCounts(((JoinOperator) op).getOuterChild());
+		}
+
+
 	}
 }

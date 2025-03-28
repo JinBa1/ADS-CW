@@ -458,7 +458,7 @@ public class BlazeDBTest {
 			}
 		}
 
-		System.out.println("Test passed for " + queryName);
+		System.out.println("Test passed for " + queryName + "\n\n");
 	}
 
 	// Helper methods

@@ -41,7 +41,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
 
         boolean result = resultStack.peek();
-        System.out.println("expression: " + expression + "evaluated to: " + result + "\n");
+//        System.out.println("expression: " + expression + "evaluated to: " + result + "\n");
 
         return resultStack.pop();
     }
@@ -121,9 +121,9 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
 
 
-        System.out.println("Column " + tableName + "." + columnName +
-                " resolved to index " + colIdx +
-                ", value: " + currentTuple.getAttribute(colIdx));
+//        System.out.println("Column " + tableName + "." + columnName +
+//                " resolved to index " + colIdx +
+//                ", value: " + currentTuple.getAttribute(colIdx));
 
 
         valueStack.push(currentTuple.getAttribute(colIdx));

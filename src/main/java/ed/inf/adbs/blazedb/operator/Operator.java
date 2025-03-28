@@ -11,6 +11,8 @@ public abstract class Operator {
 
     protected Operator child;
 
+    protected int tupleCounter = 0;
+
     /**
      * Retrieves the next tuple from the iterator.
      * @return A Tuple object representing the row of data, or NULL if EOF reached.
@@ -26,4 +28,19 @@ public abstract class Operator {
 
     public abstract String propagateSchemaId();
 
+    public int getTupleCounter() {
+        return tupleCounter;
+    }
+
+    public void resetTupleCounter() {
+        tupleCounter = 0;
+    }
+
+    public Operator getChild() {
+        return child;
+    }
+
+    public boolean hasChild() {
+        return child != null;
+    }
 }

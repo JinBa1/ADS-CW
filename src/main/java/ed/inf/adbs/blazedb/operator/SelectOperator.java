@@ -23,6 +23,7 @@ public class SelectOperator extends Operator {
                 break; //reached end of table because returned null
             }
             if (evaluator.evaluate(expression, nextTuple)) {
+                tupleCounter ++;
                 return nextTuple; //expression hold, return this tuple
             }
         }

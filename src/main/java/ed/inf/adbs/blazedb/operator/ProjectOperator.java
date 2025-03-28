@@ -41,6 +41,7 @@ public class ProjectOperator extends Operator {
             projectedColumns.add(nextTuple.getAttribute(index));
         }
 
+        tupleCounter ++;
         return new Tuple(projectedColumns);
     }
 
@@ -78,8 +79,8 @@ public class ProjectOperator extends Operator {
             String columnName = column.getColumnName();
 
             // Debug print to see what we're looking for
-            System.out.println("ProjectOperator resolving: " + tableName + "." + columnName +
-                    " in schema " + schemaId);
+//            System.out.println("ProjectOperator resolving: " + tableName + "." + columnName +
+//                    " in schema " + schemaId);
 
             Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {

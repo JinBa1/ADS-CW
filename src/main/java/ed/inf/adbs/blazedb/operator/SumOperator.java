@@ -132,6 +132,7 @@ public class SumOperator extends Operator {
             // If no GROUP BY, just return aggregate values
             if (groupByColumns.isEmpty()) {
                 resultAttributes.addAll(aggregateValues);
+                tupleCounter++;
                 return new Tuple(resultAttributes);
             }
 
@@ -148,6 +149,7 @@ public class SumOperator extends Operator {
             // Add aggregate values to the result
             resultAttributes.addAll(aggregateValues);
 
+            tupleCounter++;
             return new Tuple(resultAttributes);
         }
 

@@ -31,7 +31,7 @@ public class JoinOperator extends Operator {
     public Tuple getNextTuple() {
         if (currentOuterTuple == null) {
             currentOuterTuple = outerChild.getNextTuple();
-            System.out.println("JoinOperator: got outer tuple: " + (currentOuterTuple== null ? "null" : currentOuterTuple));
+//            System.out.println("JoinOperator: got outer tuple: " + (currentOuterTuple== null ? "null" : currentOuterTuple));
             if (currentOuterTuple == null) {
                 return null;
             }
@@ -49,10 +49,11 @@ public class JoinOperator extends Operator {
                 continue;
             }
             Tuple combined = combineTuples(currentOuterTuple, innerTuple);
-            System.out.println("JoinOperator: evaluating: " + combined);
+//            System.out.println("JoinOperator: evaluating: " + combined);
 
             if (expression == null  || evaluator.evaluate(expression, combined)) {
-                System.out.println("JoinOperator: returning combined tuple: " + combined);
+//                System.out.println("JoinOperator: returning combined tuple: " + combined);
+                tupleCounter ++;
                 return combined;
             }
         }
@@ -100,5 +101,9 @@ public class JoinOperator extends Operator {
         child.reset();
         outerChild.reset();
 
+    }
+
+    public Operator getOuterChild() {
+        return outerChild;
     }
 }

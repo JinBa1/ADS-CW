@@ -39,6 +39,7 @@ public class SortOperator extends Operator {
 
         Tuple currentTuple = tupleBuffer.get(currentTupleIndex);
         currentTupleIndex += 1;
+        tupleCounter++;
         return currentTuple;
     }
 
