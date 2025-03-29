@@ -38,6 +38,7 @@ public class JoinOperator extends Operator {
 
     @Override
     public Tuple getNextTuple() {
+
         if (currentOuterTuple == null) {
             currentOuterTuple = outerChild.getNextTuple();
 //            System.out.println("JoinOperator: got outer tuple: " + (currentOuterTuple== null ? "null" : currentOuterTuple));
@@ -204,30 +205,52 @@ public class JoinOperator extends Operator {
                                   String sourceSchemaId,
                                   int offset) {
 
-        System.out.println("DEBUG ADD ENTRIES: Adding from sourceSchema: " + sourceSchema);
-        System.out.println("DEBUG ADD ENTRIES: With offset: " + offset);
+        // First determine if this is a temp schema that represents a base table
+        String originalTableName = null;
+        if (sourceSchemaId.startsWith("temp_")) {
+            // Try to find original table through parent schemas
+            String parentId = DBCatalog.getInstance().getParentSchemaId(sourceSchemaId);
+            if (parentId != null && !parentId.startsWith("temp_")) {
+                originalTableName = parentId;
+            }
+        } else {
+            // Direct base table
+            originalTableName = sourceSchemaId;
+        }
 
         for (Map.Entry<String, Integer> entry : sourceSchema.entrySet()) {
             String columnKey = entry.getKey();
             Integer sourceIndex = entry.getValue();
             Integer targetIndex = sourceIndex + offset;
 
-            // Check if the columnKey already has a table prefix
+            // Always add with temp schema prefix for consistency
             if (columnKey.contains(".")) {
-                // Already qualified (from an intermediate schema) - use as is
+                // For columns already with table qualification
                 joinedSchema.put(columnKey, targetIndex);
-                System.out.println("DEBUG ADD ENTRIES: Adding key: " + columnKey + ", source index: " + sourceIndex + ", target index: " + targetIndex);
+
+                // Extract the column name part
+                String columnName = columnKey.substring(columnKey.indexOf('.') + 1);
+
+                // Also add with original table name if available
+                if (originalTableName != null) {
+                    joinedSchema.put(originalTableName + "." + columnName, targetIndex);
+                }
             } else {
-                // Base table column - add the table name qualifier
+                // For unqualified columns
                 joinedSchema.put(sourceSchemaId + "." + columnKey, targetIndex);
 
-                System.out.println("DEBUG ADD ENTRIES: Adding key: " + sourceSchemaId + "." + columnKey + ", source index: " + sourceIndex + ", target index: " + targetIndex);
+                // Also add with original table name if available
+                if (originalTableName != null) {
+                    joinedSchema.put(originalTableName + "." + columnKey, targetIndex);
+                }
             }
 
-            // Record source information
+            // Record mapping in transformation details
             transformationDetails.put(columnKey, sourceSchemaId + ":" + sourceIndex);
         }
     }
+
+
 
     public Expression getJoinCondition() {
         return expression;
@@ -242,6 +265,7 @@ public class JoinOperator extends Operator {
         // Reset schema registration flag
         System.out.println("JOIN: Updating schema from " + this.intermediateSchemaId + " for expression " + this.expression);
 
+        this.schemaRegistered = false;
         // Update children first
         if (this.outerChild != null) {
             this.outerChild.updateSchema();
@@ -250,14 +274,30 @@ public class JoinOperator extends Operator {
             this.child.updateSchema();
         }
 
-        this.schemaRegistered = false;
-
         // Re-register schema based on updated children
         registerSchema();
+
+        // MISSING STEP: Update join condition expressions to match new schema
+
 
         // Create a new evaluator with the updated schema
         this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
 
         System.out.println("JOIN: Updated to schema " + this.intermediateSchemaId);
     }
+
+    // Helper method to find original table name for a schema ID
+    private String getOriginalTableForSchema(String schemaId) {
+        // Look up original table for this schema
+        if (schemaId.startsWith("temp_")) {
+            // Could track this during optimization, or infer from parent schemas
+            // For simplicity, let's handle common cases
+            String parentId = DBCatalog.getInstance().getParentSchemaId(schemaId);
+            if (parentId != null && !parentId.startsWith("temp_")) {
+                return parentId; // The base table name
+            }
+        }
+        return null;
+    }
+
 }

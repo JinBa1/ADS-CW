@@ -201,4 +201,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
     }
 
+    public String getSchemaId() {
+        return schemaId;
+    }
 }
