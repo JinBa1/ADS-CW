@@ -33,8 +33,9 @@ public class QueryPlanOptimizer {
         rootOp = removeUnnecessaryProjects(rootOp);
         rootOp = removeUnnecessarySelects(rootOp);
 
+        rootOp = pushSelectionsDown(rootOp);
         // Then, combine operators where possible
-        rootOp = combineConsecutiveSelects(rootOp);
+//        rootOp = combineConsecutiveSelects(rootOp);
 
         // Lastly, reorder operators to minimize intermediate results
         // Note: we must maintain the left-deep join tree with the original table order
@@ -242,80 +243,157 @@ public class QueryPlanOptimizer {
      * @return The optimized operator
      */
     private static Operator pushSelectionsDown(Operator op) {
-        if (op == null) {
-            return null;
-        }
+        if (op == null) return null;
 
-        // Special cases for SelectOperator
+        // Process selections at the current level
         if (op instanceof SelectOperator) {
             SelectOperator selectOp = (SelectOperator) op;
+            Expression condition = selectOp.getCondition();
 
-            // If the child is a JoinOperator, we can try to push selection into the join
+            // Try to push selection down
             if (selectOp.getChild() instanceof JoinOperator) {
-                JoinOperator joinChild = (JoinOperator) selectOp.getChild();
-
-                // Check if selection can be pushed to inner child
-                Operator innerChild = joinChild.getChild();
-                Set<String> innerTables = getReferencedTables(innerChild);
-
-                // Check if selection can be pushed to outer child
-                Operator outerChild = joinChild.getOuterChild();
-                Set<String> outerTables = getReferencedTables(outerChild);
-
-                // Analyze the selection condition
-                Expression selectCondition = selectOp.getCondition();
-                Set<String> conditionTables = getTablesInExpression(selectCondition);
-
-                // If condition only references tables from inner/outer child, push it down
-                if (innerTables.containsAll(conditionTables)) {
-                    System.out.println("Optimizer: Pushing selection to inner join child");
-                    Operator newInnerChild = new SelectOperator(innerChild, selectCondition);
-                    joinChild.setChild(newInnerChild);
-                    return joinChild; // Remove the original SelectOperator
-                } else if (outerTables.containsAll(conditionTables)) {
-                    System.out.println("Optimizer: Pushing selection to outer join child");
-                    Operator newOuterChild = new SelectOperator(outerChild, selectCondition);
-                    joinChild.setOuterChild(newOuterChild);
-                    return joinChild; // Remove the original SelectOperator
-                }
-
-                // Selection can't be pushed down, keep as is
-                selectOp.setChild(joinChild);
-                return selectOp;
+                return pushSelectionIntoJoin(selectOp);
             }
-            // If child is a ProjectOperator, consider swapping them
             else if (selectOp.getChild() instanceof ProjectOperator) {
-                ProjectOperator projectChild = (ProjectOperator) selectOp.getChild();
-
-                // Check if selection can be applied before projection
-                if (canPushSelectionBeforeProjection(selectOp.getCondition(), projectChild)) {
-                    System.out.println("Optimizer: Swapping Selection and Projection");
-                    // Create new SelectOperator with project's child
-                    Operator newSelect = new SelectOperator(projectChild.getChild(), selectOp.getCondition());
-                    // Set project's child to the new select
-                    projectChild.setChild(newSelect);
-                    return projectChild;
-                }
+                return pushSelectionThroughProjection(selectOp);
             }
-
-            // No optimization applied, recursively optimize the child
-            selectOp.setChild(pushSelectionsDown(selectOp.getChild()));
-            return selectOp;
         }
-        // Regular recursive case for other operators
-        else if (op.hasChild()) {
+
+        // Recursively process children
+        if (op.hasChild()) {
             op.setChild(pushSelectionsDown(op.getChild()));
         }
 
-        // Special case for JoinOperator which has two children
+        // Special case for JoinOperator's outer child
         if (op instanceof JoinOperator) {
             JoinOperator joinOp = (JoinOperator) op;
             joinOp.setOuterChild(pushSelectionsDown(joinOp.getOuterChild()));
-            joinOp.setChild(pushSelectionsDown(joinOp.getChild()));
         }
 
         return op;
     }
+
+    // Push selection down into a join
+    private static Operator pushSelectionIntoJoin(SelectOperator selectOp) {
+        JoinOperator joinOp = (JoinOperator) selectOp.getChild();
+        Expression condition = selectOp.getCondition();
+
+        // Split the selection condition
+        Map<Operator, Expression> splitConditions = splitJoinCondition(
+                condition,
+                joinOp.getOuterChild(),
+                joinOp.getChild()
+        );
+
+        // Apply conditions to each child where applicable
+        Expression outerCondition = splitConditions.get(joinOp.getOuterChild());
+        if (outerCondition != null) {
+            joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), outerCondition));
+            System.out.println("Pushed selection to outer join child: " + outerCondition);
+        }
+
+        Expression innerCondition = splitConditions.get(joinOp.getChild());
+        if (innerCondition != null) {
+            joinOp.setChild(new SelectOperator(joinOp.getChild(), innerCondition));
+            System.out.println("Pushed selection to inner join child: " + innerCondition);
+        }
+
+        // Remaining conditions stay with the join
+        Expression remainingCondition = splitConditions.get(null);
+        if (remainingCondition != null) {
+            // Either modify join condition or keep a selection above the join
+            if (joinOp.getJoinCondition() != null) {
+                // Combine with existing join condition
+                Expression combinedCondition = new AndExpression(joinOp.getJoinCondition(), remainingCondition);
+                return new SelectOperator(joinOp, remainingCondition);
+            } else {
+                return new SelectOperator(joinOp, remainingCondition);
+            }
+        }
+
+        return joinOp;
+    }
+
+    // Push selection through a projection if possible
+    private static Operator pushSelectionThroughProjection(SelectOperator selectOp) {
+        ProjectOperator projectOp = (ProjectOperator) selectOp.getChild();
+        Expression condition = selectOp.getCondition();
+
+        // Check if all columns used in the selection are preserved by the projection
+        if (canPushSelectionThroughProjection(condition, projectOp)) {
+            // Create a new selection below the projection
+            Operator newChild = new SelectOperator(projectOp.getChild(), condition);
+            projectOp.setChild(newChild);
+            System.out.println("Pushed selection through projection");
+            return projectOp;
+        }
+
+        return selectOp;
+    }
+
+    // Split a condition for join selection pushdown using schema information
+    private static Map<Operator, Expression> splitJoinCondition(
+            Expression condition,
+            Operator outerChild,
+            Operator innerChild) {
+
+        Map<Operator, Expression> result = new HashMap<>();
+
+        // Get schema IDs for both children
+        String outerSchemaId = outerChild.propagateSchemaId();
+        String innerSchemaId = innerChild.propagateSchemaId();
+
+        // Split using table references in condition
+        ConditionSplitter splitter = new ConditionSplitter(outerSchemaId, innerSchemaId);
+        condition.accept(splitter);
+
+        // Get the split conditions
+        result.put(outerChild, splitter.getOuterCondition());
+        result.put(innerChild, splitter.getInnerCondition());
+        result.put(null, splitter.getJoinCondition());
+
+        return result;
+    }
+
+    // Helper to check if a selection can be pushed through projection
+    private static boolean canPushSelectionThroughProjection(
+            Expression condition,
+            ProjectOperator projectOp) {
+
+        // Extract columns referenced in the condition
+        List<Column> conditionColumns = extractColumns(condition);
+
+        // Get projected columns
+        List<Column> projectedColumns = projectOp.getColumns();
+
+        // Check if all condition columns are in the projection
+        for (Column condCol : conditionColumns) {
+            boolean found = false;
+            for (Column projCol : projectedColumns) {
+                if (columnsMatch(condCol, projCol)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+
+        return true;
+    }
+
+    // Extract columns from an expression
+    private static List<Column> extractColumns(Expression expression) {
+        ColumnExtractor extractor = new ColumnExtractor();
+        expression.accept(extractor);
+        return extractor.getColumns();
+    }
+
+    // Check if two columns match (considering table and column names)
+    private static boolean columnsMatch(Column col1, Column col2) {
+        return col1.getColumnName().equalsIgnoreCase(col2.getColumnName()) &&
+                col1.getTable().getName().equalsIgnoreCase(col2.getTable().getName());
+    }
+
 
     /**
      * Gets the set of table names referenced by an operator and its descendants.

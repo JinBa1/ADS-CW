@@ -212,4 +212,12 @@ public class JoinOperator extends Operator {
             transformationDetails.put(columnKey, sourceSchemaId + ":" + sourceIndex);
         }
     }
+
+    public Expression getJoinCondition() {
+        return expression;
+    }
+
+    public void setJoinCondition(Expression expression) {
+        this.expression = expression;
+    }
 }
