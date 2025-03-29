@@ -2,6 +2,7 @@ package ed.inf.adbs.blazedb.operator;
 
 import ed.inf.adbs.blazedb.DBCatalog;
 import ed.inf.adbs.blazedb.ExpressionEvaluator;
+import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.schema.Column;
@@ -23,13 +24,13 @@ public class ProjectOperator extends Operator {
         this.child = child;
         this.columns = columns;
         indicesResolved = false;
+
+        resolveColumnIndices();
+        registerProjectSchema();
     }
 
     @Override
     public Tuple getNextTuple() {
-        if (!indicesResolved) {
-            resolveColumnIndices();
-        }
 
         Tuple nextTuple = child.getNextTuple();
         if (nextTuple == null) {
@@ -110,6 +111,7 @@ public class ProjectOperator extends Operator {
 
         // Create a new mapping for the projected columns
         Map<String, Integer> projectedSchema = new HashMap<>();
+        Map<String, String> transformationDetails = new HashMap<>();
 
         // For each column in our projected output
         for (int i = 0; i < columns.size(); i++) {
@@ -120,10 +122,22 @@ public class ProjectOperator extends Operator {
 
             // In our projected output, this column will be at position i
             projectedSchema.put(key, i);
+
+            // Record the source -> target mapping for this column
+            String sourceSchemaId = child.propagateSchemaId();
+            Integer sourceIndex = DBCatalog.resolveColumnIndex(sourceSchemaId, tableName, columnName);
+            transformationDetails.put(key, sourceIndex.toString());
         }
 
         // Register this schema with DBCatalog
-        intermediateSchemaId = DBCatalog.getInstance().registerIntermediateSchema(projectedSchema);
+        // Register this schema with DBCatalog, including transformation details
+        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
+                projectedSchema,
+                child.propagateSchemaId(),
+                SchemaTransformationType.PROJECTION,
+                transformationDetails
+        );
+
         schemaRegistered = true;
     }
 

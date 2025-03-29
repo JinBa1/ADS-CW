@@ -2,6 +2,7 @@ package ed.inf.adbs.blazedb.operator;
 
 import ed.inf.adbs.blazedb.DBCatalog;
 import ed.inf.adbs.blazedb.ExpressionEvaluator;
+import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -70,6 +71,9 @@ public class SumOperator extends Operator {
 
         // Resolve column indices
         resolveColumnIndices();
+
+        // Register schema during construction
+        registerResultSchema();
     }
 
     /**
@@ -239,6 +243,7 @@ public class SumOperator extends Operator {
 
 
     // New method to register the result schema
+
     private void registerResultSchema() {
         if (schemaRegistered) {
             return;
@@ -246,6 +251,7 @@ public class SumOperator extends Operator {
 
         // Create a new schema mapping that describes our output structure
         Map<String, Integer> resultSchema = new HashMap<>();
+        Map<String, String> transformationDetails = new HashMap<>();
 
         int colIndex = 0;
 
@@ -256,21 +262,24 @@ public class SumOperator extends Operator {
                 String columnName = col.getColumnName().toLowerCase();
                 String key = tableName + "." + columnName;
 
-                resultSchema.put(key, colIndex++);
+                resultSchema.put(key, colIndex);
+
+                // Record source information
+                String sourceSchemaId = child.propagateSchemaId();
+                Integer sourceIndex = DBCatalog.resolveColumnIndex(sourceSchemaId, tableName, columnName);
+                transformationDetails.put(key, "group_by:" + sourceIndex);
+
+                colIndex++;
             }
         }
 
         // Then add positions for the SUM aggregates
-        // For simplicity, we'll use a convention for aggregate column names
         for (int i = 0; i < sumExpressions.size(); i++) {
-            // Use a unique name for the aggregate column
-            // (for ORDER BY to reference correctly)
             Expression sumExpr = sumExpressions.get(i);
             String aggregateKey;
 
             if (sumExpr instanceof Function) {
                 Function function = (Function) sumExpr;
-                // Get the inner expression to create a meaningful name
                 Expression innerExpr = (Expression) function.getParameters().get(0);
 
                 // Use a naming convention that can be matched in ORDER BY
@@ -280,16 +289,23 @@ public class SumOperator extends Operator {
                     String columnName = col.getColumnName().toLowerCase();
                     aggregateKey = "SUM(" + tableName + "." + columnName + ")";
                 } else {
-                    // For other expressions like SUM(1) or SUM(A*B)
                     aggregateKey = "SUM(" + i + ")";
                 }
 
-                resultSchema.put(aggregateKey, colIndex++);
+                resultSchema.put(aggregateKey, colIndex);
+                transformationDetails.put(aggregateKey, "aggregate:" + i);
+                colIndex++;
             }
         }
 
-        // Register this schema with DBCatalog
-        intermediateSchemaId = DBCatalog.getInstance().registerIntermediateSchema(resultSchema);
+        // Register this schema with DBCatalog, including transformation details
+        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
+                resultSchema,
+                child.propagateSchemaId(),
+                SchemaTransformationType.AGGREGATION,
+                transformationDetails
+        );
+
         schemaRegistered = true;
     }
 }

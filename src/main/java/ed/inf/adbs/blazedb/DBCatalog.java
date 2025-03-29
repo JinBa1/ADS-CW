@@ -1,18 +1,13 @@
 package ed.inf.adbs.blazedb;
 
-import net.sf.jsqlparser.schema.Column;
-
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Stream;
+
+
 
 public class DBCatalog {
 
@@ -23,10 +18,23 @@ public class DBCatalog {
 
     private final Map<String, Map<String, Integer>> intermediateSchemata;
 
+    // Add schema transformation tracking
+    private final Map<String, String> schemaParentMap; // child schema ID -> parent schema ID
+    private final Map<String, SchemaTransformation> schemaTransformations; // schema ID -> transformation details
+
+    private final Map<String, List<String>> schemaMultiParentMap;
+
+
     private DBCatalog() {
         dBLocations = new HashMap<>();
         dBSchemata = new HashMap<>();
         intermediateSchemata = new HashMap<>();
+
+
+        schemaParentMap = new HashMap<>();
+        schemaTransformations = new HashMap<>();
+
+        schemaMultiParentMap = new HashMap<>();
     }
 
     public static DBCatalog getInstance() {
@@ -210,5 +218,79 @@ public class DBCatalog {
         } else {
             return catalog.getDBColumnName(tableName, columnName);
         }
+    }
+
+    // Register a schema with transformation information
+    public String registerSchemaWithTransformation(Map<String, Integer> schema,
+                                                   String parentSchemaId,
+                                                   SchemaTransformationType type,
+                                                   Map<String, String> transformationDetails) {
+        String schemaId = registerIntermediateSchema(schema);
+
+        // Record parent relationship
+        if (parentSchemaId != null) {
+            schemaParentMap.put(schemaId, parentSchemaId);
+        }
+
+        // Record transformation details
+        schemaTransformations.put(schemaId, new SchemaTransformation(type, transformationDetails));
+
+        return schemaId;
+    }
+
+    // Get information about schema lineage
+    public String getParentSchemaId(String schemaId) {
+        return schemaParentMap.get(schemaId);
+    }
+
+    public SchemaTransformation getSchemaTransformation(String schemaId) {
+        return schemaTransformations.get(schemaId);
+    }
+
+    // Get schema derivation path - useful for optimization
+    public List<String> getSchemaLineage(String schemaId) {
+        List<String> lineage = new ArrayList<>();
+
+        String currentId = schemaId;
+        while (currentId != null) {
+            lineage.add(currentId);
+            currentId = schemaParentMap.get(currentId);
+        }
+
+        return lineage;
+    }
+
+    public Integer resolveColumnThroughTransformations(String finalSchemaId,
+                                                       String tableName,
+                                                       String columnName) {
+        // First try direct resolution in the final schema
+        Integer directIndex = resolveColumnIndex(finalSchemaId, tableName, columnName);
+        if (directIndex != null) {
+            return directIndex;
+        }
+
+        // If not found, check the transformation chain
+        List<String> lineage = getSchemaLineage(finalSchemaId);
+        for (String schemaId : lineage) {
+            SchemaTransformation transformation = getSchemaTransformation(schemaId);
+            if (transformation != null) {
+                // Use transformation details to resolve the column
+                // This logic would depend on the type of transformation
+                // ...
+            }
+        }
+
+        return null; // Column not found in any schema in the lineage
+    }
+
+    // Add a parent schema (for operators with multiple inputs like JOIN)
+    public void addParentSchema(String childSchemaId, String parentSchemaId) {
+        schemaMultiParentMap.computeIfAbsent(childSchemaId, k -> new ArrayList<>())
+                .add(parentSchemaId);
+    }
+
+    // Get all parent schemas (useful for joins)
+    public List<String> getAllParentSchemas(String schemaId) {
+        return schemaMultiParentMap.getOrDefault(schemaId, Collections.emptyList());
     }
 }
