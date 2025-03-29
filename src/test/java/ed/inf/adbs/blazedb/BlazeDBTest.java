@@ -709,7 +709,7 @@ public class BlazeDBTest {
 	 * Runs a test with the given query name, query content, and expected output.
 	 * Creates the query file, runs BlazeDB, and verifies the output.
 	 */
-	private void runTest(String queryName, String queryContent, String expectedOutput) throws IOException {
+    protected void runTest(String queryName, String queryContent, String expectedOutput) throws IOException {
 		runTest(queryName, queryContent, expectedOutput, true);
 	}
 
@@ -719,7 +719,7 @@ public class BlazeDBTest {
 	 * @param strictOrder If true, the output order must match exactly. If false,
 	 *                    the output is compared regardless of row order.
 	 */
-	private void runTest(String queryName, String queryContent, String expectedOutput, boolean strictOrder) throws IOException {
+    protected void runTest(String queryName, String queryContent, String expectedOutput, boolean strictOrder) throws IOException {
 		// Create query file
 		String queryFilePath = Paths.get(TEST_QUERIES_DIR, queryName + ".sql").toString();
 		Files.write(Paths.get(queryFilePath), queryContent.getBytes(StandardCharsets.UTF_8));
