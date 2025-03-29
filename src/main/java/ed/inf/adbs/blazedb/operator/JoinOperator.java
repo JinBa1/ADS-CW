@@ -107,6 +107,21 @@ public class JoinOperator extends Operator {
 
     public void setOuterChild(Operator outerChild) {
         this.outerChild = outerChild;
+        updateJoinCondition();
+    }
+
+    public void setChild(Operator innerChild) {
+        this.child = innerChild;
+        updateJoinCondition();
+    }
+
+    private void updateJoinCondition() {
+        if (this.expression == null) return;
+
+        // Update schema ID for the evaluator
+        if (this.intermediateSchemaId != null) {
+            this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
+        }
     }
 
     @Override
@@ -179,13 +194,6 @@ public class JoinOperator extends Operator {
         }
     }
 
-    private int calculateTupleSize(Map<String, Integer> schema) {
-        int maxIndex = -1;
-        for (Integer index : schema.values()) {
-            maxIndex = Math.max(maxIndex, index);
-        }
-        return maxIndex + 1;
-    }
 
 
 

@@ -9,6 +9,7 @@ import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.schema.Column;
 
+import java.util.Map;
 import java.util.Stack;
 
 public class ExpressionEvaluator extends ExpressionVisitorAdapter {
@@ -114,9 +115,8 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
 
-        // Try to resolve using transformation-aware method
-        Integer colIdx = DBCatalog.getInstance().resolveColumnThroughTransformations(
-                schemaId, tableName, columnName);
+        Integer colIdx = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
+
 
         System.out.println("DEBUG EVAL: Looking up column " + tableName + "." + columnName +
                 " in schema " + schemaId + ", resolved to index: " + colIdx);
@@ -124,8 +124,20 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
                 ", tuple: " + currentTuple);
 
         if (colIdx == null) {
-            // Fall back to direct resolution
-            colIdx = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
+            // If not found, try looking for the column by its name only
+            // Get all keys in the schema
+            Map<String, Integer> schema = getSchemaMap(schemaId);
+            if (schema != null) {
+                // Try to find any key that ends with ".columnName"
+                String columnNameLower = columnName.toLowerCase();
+                for (Map.Entry<String, Integer> entry : schema.entrySet()) {
+                    String key = entry.getKey();
+                    if (key.endsWith("." + columnNameLower)) {
+                        colIdx = entry.getValue();
+                        break;
+                    }
+                }
+            }
         }
 
         if (colIdx == null) {
@@ -177,5 +189,13 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
     }
 
+    private Map<String, Integer> getSchemaMap(String schemaId) {
+        if (schemaId == null) return null;
+        if (schemaId.startsWith("temp_")) {
+            return DBCatalog.getInstance().getIntermediateSchema(schemaId);
+        } else {
+            return DBCatalog.getInstance().getDBSchemata(schemaId);
+        }
+    }
 
 }
