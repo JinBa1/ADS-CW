@@ -165,29 +165,7 @@ public class QueryPlanOptimizer {
         return op;
     }
 
-    /**
-     * Checks if a SelectOperator has a condition that is always true.
-     */
-    private static boolean isSelectionTrivial(SelectOperator selectOp) {
-        Expression condition = selectOp.getCondition();
 
-        // Check for common trivial conditions
-
-        // 1 = 1, true, etc.
-        if (condition instanceof EqualsTo) {
-            EqualsTo equals = (EqualsTo) condition;
-            if (equals.getLeftExpression() instanceof LongValue &&
-                    equals.getRightExpression() instanceof LongValue) {
-                LongValue left = (LongValue) equals.getLeftExpression();
-                LongValue right = (LongValue) equals.getRightExpression();
-                return left.getValue() == right.getValue();
-            }
-        }
-
-        // More cases could be added for other types of trivial conditions
-
-        return false;
-    }
 
     /**
      * Combines consecutive SelectOperators into a single SelectOperator.
@@ -250,12 +228,54 @@ public class QueryPlanOptimizer {
             SelectOperator selectOp = (SelectOperator) op;
             Expression condition = selectOp.getCondition();
 
-            // Try to push selection down
-            if (selectOp.getChild() instanceof JoinOperator) {
-                return pushSelectionIntoJoin(selectOp);
+            // First, try to split complex conditions
+            List<Expression> splitConditions = splitAndConditions(condition);
+
+            if (splitConditions.size() > 1) {
+                System.out.println("Splitting AND condition into " + splitConditions.size() + " parts");
+
+                // Create a chain of SelectOperators
+                Operator child = selectOp.getChild();
+                for (Expression splitCondition : splitConditions) {
+                    child = new SelectOperator(child, splitCondition);
+                }
+
+                // Now optimize each SelectOperator
+                return pushSelectionsDown(child);
             }
-            else if (selectOp.getChild() instanceof ProjectOperator) {
-                return pushSelectionThroughProjection(selectOp);
+
+            // Try to push the single selection down
+            if (selectOp.getChild() instanceof JoinOperator) {
+                JoinOperator joinOp = (JoinOperator) selectOp.getChild();
+
+                // Analyze the condition
+                Set<String> tablesInCondition = extractTableNames(condition);
+                String outerSchemaId = joinOp.getOuterChild().propagateSchemaId();
+                String innerSchemaId = joinOp.getChild().propagateSchemaId();
+                Set<String> outerTables = getTablesInSchema(outerSchemaId);
+                Set<String> innerTables = getTablesInSchema(innerSchemaId);
+
+                System.out.println("OPTIMIZER: Analyzing condition " + condition);
+                System.out.println("OPTIMIZER: Tables in condition: " + tablesInCondition);
+                System.out.println("OPTIMIZER: Outer schema tables: " + outerTables);
+                System.out.println("OPTIMIZER: Inner schema tables: " + innerTables);
+
+                // Check if condition applies to only outer child
+                if (outerTables.containsAll(tablesInCondition)) {
+                    System.out.println("OPTIMIZER: Pushing selection to outer child: " + condition);
+                    joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), condition));
+                    return joinOp;
+                }
+
+                // Check if condition applies to only inner child
+                if (innerTables.containsAll(tablesInCondition)) {
+                    System.out.println("OPTIMIZER: Pushing selection to inner child: " + condition);
+                    joinOp.setChild(new SelectOperator(joinOp.getChild(), condition));
+                    return joinOp;
+                }
+
+                // If it's a join condition or can't be pushed down, keep it
+                return selectOp;
             }
         }
 
@@ -467,5 +487,73 @@ public class QueryPlanOptimizer {
 
         // Check if all selection columns are in projection
         return projectionColumnSet.containsAll(selectColumns);
+    }
+
+    private static List<Expression> splitAndConditions(Expression expr) {
+        List<Expression> result = new ArrayList<>();
+
+        if (expr instanceof AndExpression) {
+            AndExpression and = (AndExpression) expr;
+            result.addAll(splitAndConditions(and.getLeftExpression()));
+            result.addAll(splitAndConditions(and.getRightExpression()));
+        } else {
+            result.add(expr);
+        }
+
+        return result;
+    }
+
+    private static Set<String> extractTableNames(Expression expr) {
+        final Set<String> tables = new HashSet<>();
+
+        expr.accept(new ExpressionVisitorAdapter() {
+            @Override
+            public void visit(Column column) {
+                if (column.getTable() != null && column.getTable().getName() != null) {
+                    tables.add(column.getTable().getName());
+                }
+            }
+        });
+
+        return tables;
+    }
+
+    private static Set<String> getTablesInSchema(String schemaId) {
+        Set<String> tables = new HashSet<>();
+
+        if (schemaId.startsWith("temp_")) {
+            // For intermediate schemas, extract table names from column keys
+            Map<String, Integer> schema = DBCatalog.getInstance().getIntermediateSchema(schemaId);
+            if (schema != null) {
+                for (String key : schema.keySet()) {
+                    int dotIndex = key.indexOf('.');
+                    if (dotIndex > 0) {
+                        tables.add(key.substring(0, dotIndex));
+                    }
+                }
+            }
+        } else {
+            // For base tables, the schema ID is the table name
+            tables.add(schemaId);
+        }
+
+        return tables;
+    }
+
+    private static boolean isSelectionTrivial(SelectOperator selectOp) {
+        Expression condition = selectOp.getCondition();
+
+        // Check for common trivial conditions like 1 = 1
+        if (condition instanceof EqualsTo) {
+            EqualsTo equals = (EqualsTo) condition;
+            if (equals.getLeftExpression() instanceof LongValue &&
+                    equals.getRightExpression() instanceof LongValue) {
+                LongValue left = (LongValue) equals.getLeftExpression();
+                LongValue right = (LongValue) equals.getRightExpression();
+                return left.getValue() == right.getValue();
+            }
+        }
+
+        return false;
     }
 }
