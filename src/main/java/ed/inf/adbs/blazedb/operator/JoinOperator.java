@@ -232,7 +232,7 @@ public class JoinOperator extends Operator {
     @Override
     public void updateSchema() {
         // Reset schema registration flag
-        this.schemaRegistered = false;
+
 
         // Update children first
         if (this.outerChild != null) {
@@ -241,6 +241,8 @@ public class JoinOperator extends Operator {
         if (this.child != null) {
             this.child.updateSchema();
         }
+
+        this.schemaRegistered = false;
 
         // Re-register schema based on updated children
         registerSchema();

@@ -39,6 +39,7 @@ public class ProjectOperator extends Operator {
 
         ArrayList<Integer> projectedColumns = new ArrayList<>();
         for (Integer index : resolvedIndices) {
+            System.out.println("DEBUG PROJ: Using index " + index + " for tuple of size " + nextTuple.getTuple().size());
             projectedColumns.add(nextTuple.getAttribute(index));
         }
 
@@ -94,9 +95,9 @@ public class ProjectOperator extends Operator {
         if (schemaRegistered) return;
 
         // First, resolve column indices if not already done
-        if (!indicesResolved) {
-            resolveColumnIndices();
-        }
+
+        resolveColumnIndices();
+
 
         // Create schema for projection result
         Map<String, Integer> projectedSchema = new HashMap<>();
@@ -131,5 +132,21 @@ public class ProjectOperator extends Operator {
 
     public List<Column> getColumns() {
         return columns;
+    }
+
+    @Override
+    public void updateSchema() {
+        System.out.println("DEBUG: ProjectOperator updating schema. Current indices: " + resolvedIndices);
+        this.schemaRegistered = false;
+        this.indicesResolved = false; // This is crucial!
+
+        System.out.println("DEBUG: ProjectOperator updated schema. New indices: " + resolvedIndices);
+
+        // Propagate to child
+        if (this.hasChild()) {
+            this.child.updateSchema();
+        }
+
+        registerSchema();
     }
 }
