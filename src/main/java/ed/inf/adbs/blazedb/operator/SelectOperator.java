@@ -27,6 +27,9 @@ public class SelectOperator extends Operator {
 
     @Override
     public Tuple getNextTuple() {
+        System.out.println("SelectOperator using schema ID: " + this.intermediateSchemaId);
+        System.out.println("Child operator has schema ID: " + this.child.propagateSchemaId());
+
         while (true) {
             Tuple nextTuple = child.getNextTuple();
             if (nextTuple == null) {
@@ -92,5 +95,23 @@ public class SelectOperator extends Operator {
         );
 
         schemaRegistered = true;
+    }
+
+    @Override
+    public void updateSchema() {
+        // Reset registration flag
+        this.schemaRegistered = false;
+
+        // Update child first
+        if (this.child != null) {
+            this.child.updateSchema();
+        }
+
+        // Re-register schema
+        registerSchema();
+
+        // CRITICAL FIX: Recreate evaluator with updated schema ID
+        this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
+        System.out.println("SELECT: Updated evaluator with schema ID: " + intermediateSchemaId);
     }
 }

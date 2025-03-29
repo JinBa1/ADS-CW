@@ -31,6 +31,9 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
     }
 
     public boolean evaluate(Expression expression, Tuple tuple) {
+        System.out.println("Evaluating expression with schema ID: " + this.schemaId);
+        System.out.println("Actual tuple: " + tuple);
+
         this.currentTuple = tuple;
         this.resultStack.clear();
         this.valueStack.clear();

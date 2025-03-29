@@ -45,8 +45,36 @@ public class QueryPlanOptimizer {
         // Note: we must maintain the left-deep join tree with the original table order
 
         System.out.println("Query plan optimization complete.");
+
+        verifySchemaConsistency(rootOp);
         return rootOp;
     }
+
+
+    private static void verifySchemaConsistency(Operator op) {
+        if (op == null) return;
+
+        String schemaId = op.propagateSchemaId();
+        System.out.println("Operator " + op.getClass().getSimpleName() +
+                " has schema ID: " + schemaId);
+
+        if (op instanceof SelectOperator) {
+            SelectOperator selectOp = (SelectOperator) op;
+            System.out.println("  Select condition: " + selectOp.getCondition());
+        }
+
+        if (op instanceof JoinOperator) {
+            JoinOperator joinOp = (JoinOperator) op;
+            System.out.println("  Join condition: " + joinOp.getJoinCondition());
+            System.out.println("  Outer child schema: " + joinOp.getOuterChild().propagateSchemaId());
+            verifySchemaConsistency(joinOp.getOuterChild());
+        }
+
+        if (op.hasChild()) {
+            verifySchemaConsistency(op.getChild());
+        }
+    }
+
 
     /**
      * Removes ProjectOperators that don't actually project anything (keep all columns).

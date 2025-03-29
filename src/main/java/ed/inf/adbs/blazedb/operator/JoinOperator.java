@@ -240,7 +240,7 @@ public class JoinOperator extends Operator {
     @Override
     public void updateSchema() {
         // Reset schema registration flag
-
+        System.out.println("JOIN: Updating schema from " + this.intermediateSchemaId + " for expression " + this.expression);
 
         // Update children first
         if (this.outerChild != null) {
@@ -257,5 +257,7 @@ public class JoinOperator extends Operator {
 
         // Create a new evaluator with the updated schema
         this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
+
+        System.out.println("JOIN: Updated to schema " + this.intermediateSchemaId);
     }
 }
