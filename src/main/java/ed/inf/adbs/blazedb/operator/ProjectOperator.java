@@ -69,6 +69,9 @@ public class ProjectOperator extends Operator {
         String schemaId = child.propagateSchemaId();
         resolvedIndices = new ArrayList<>();
 
+        System.out.println("DEBUG PROJECT: Using schema ID: " + schemaId);
+        System.out.println("DEBUG PROJECT: Resolving columns: " + columns);
+
         for (Column column : columns) {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();

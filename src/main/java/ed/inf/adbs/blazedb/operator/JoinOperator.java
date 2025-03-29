@@ -112,6 +112,10 @@ public class JoinOperator extends Operator {
         Map<String, Integer> leftSchemaMap = getSchemaMap(leftSchemaId);
         Map<String, Integer> rightSchemaMap = getSchemaMap(rightSchemaId);
 
+        System.out.println("DEBUG JOIN: Left schema ID = " + leftSchemaId + ", Right schema ID = " + rightSchemaId);
+        System.out.println("DEBUG JOIN: Left schema map: " + leftSchemaMap);
+        System.out.println("DEBUG JOIN: Right schema map: " + rightSchemaMap);
+
         if (leftSchemaMap == null || rightSchemaMap == null) {
             throw new RuntimeException("Could not retrieve schemas for join");
         }
@@ -119,6 +123,8 @@ public class JoinOperator extends Operator {
         // Create combined schema
         Map<String, Integer> joinedSchema = new HashMap<>();
         Map<String, String> transformationDetails = new HashMap<>();
+
+
 
         // Calculate left tuple size for offset
         int leftTupleSize = 0;
@@ -148,6 +154,9 @@ public class JoinOperator extends Operator {
         catalog.addParentSchema(intermediateSchemaId, leftSchemaId);
         catalog.addParentSchema(intermediateSchemaId, rightSchemaId);
 
+        System.out.println("DEBUG JOIN: Joined schema: " + joinedSchema);
+        System.out.println("DEBUG JOIN: Registered schema ID: " + intermediateSchemaId);
+
         schemaRegistered = true;
 
         // Remove the redundant initEvaluator method
@@ -170,20 +179,37 @@ public class JoinOperator extends Operator {
         return maxIndex + 1;
     }
 
+
+
+
     private void addSchemaEntries(Map<String, Integer> joinedSchema,
                                   Map<String, String> transformationDetails,
                                   Map<String, Integer> sourceSchema,
                                   String sourceSchemaId,
                                   int offset) {
+
+        System.out.println("DEBUG ADD ENTRIES: Adding from sourceSchema: " + sourceSchema);
+        System.out.println("DEBUG ADD ENTRIES: With offset: " + offset);
+
         for (Map.Entry<String, Integer> entry : sourceSchema.entrySet()) {
-            String key = entry.getKey();
+            String columnKey = entry.getKey();
             Integer sourceIndex = entry.getValue();
             Integer targetIndex = sourceIndex + offset;
 
-            joinedSchema.put(key, targetIndex);
+            // Check if the columnKey already has a table prefix
+            if (columnKey.contains(".")) {
+                // Already qualified (from an intermediate schema) - use as is
+                joinedSchema.put(columnKey, targetIndex);
+                System.out.println("DEBUG ADD ENTRIES: Adding key: " + columnKey + ", source index: " + sourceIndex + ", target index: " + targetIndex);
+            } else {
+                // Base table column - add the table name qualifier
+                joinedSchema.put(sourceSchemaId + "." + columnKey, targetIndex);
+
+                System.out.println("DEBUG ADD ENTRIES: Adding key: " + sourceSchemaId + "." + columnKey + ", source index: " + sourceIndex + ", target index: " + targetIndex);
+            }
 
             // Record source information
-            transformationDetails.put(key, sourceSchemaId + ":" + sourceIndex);
+            transformationDetails.put(columnKey, sourceSchemaId + ":" + sourceIndex);
         }
     }
 }

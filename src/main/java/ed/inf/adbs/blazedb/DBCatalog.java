@@ -213,6 +213,12 @@ public class DBCatalog {
     public static Integer resolveColumnIndex(String schemaId, String tableName, String columnName) {
         DBCatalog catalog = DBCatalog.getInstance();
 
+        System.out.println("DEBUG RESOLVE: Looking for column " + tableName + "." + columnName + " in schema " + schemaId);
+
+        Map<String, Integer> schema = schemaId.startsWith("temp_") ?
+                catalog.intermediateSchemata.get(schemaId) : catalog.dBSchemata.get(schemaId);
+        System.out.println("DEBUG RESOLVE: Available keys in schema: " + schema.keySet());
+
         if (schemaId.startsWith("temp_")) {
             return catalog.getIntermediateColumnName(schemaId, tableName, columnName);
         } else {
@@ -226,6 +232,11 @@ public class DBCatalog {
                                                    SchemaTransformationType type,
                                                    Map<String, String> transformationDetails) {
         String schemaId = registerIntermediateSchema(schema);
+
+        if (schemaId == null) {
+            System.err.println("ERROR: Failed to register intermediate schema");
+            return null;
+        }
 
         // Record parent relationship
         if (parentSchemaId != null) {
