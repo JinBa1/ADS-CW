@@ -264,9 +264,14 @@ public class QueryPlanner {
         List<Column> groupByColumns = new ArrayList<>();
         List<Expression> groupByExpressions = select.getPlainSelect().getGroupBy().getGroupByExpressions();
 
+        System.out.println("DEBUG PLANNER: Extracted GROUP BY expressions: " + groupByExpressions);
+
         for (Expression expr : groupByExpressions) {
             if (expr instanceof Column) {
-                groupByColumns.add((Column) expr);
+                Column column = (Column) expr;
+                groupByColumns.add(column);
+                System.out.println("DEBUG PLANNER: Added GROUP BY column: " +
+                        column.getTable().getName() + "." + column.getColumnName());
             } else {
                 throw new UnsupportedOperationException("Only column references are supported in GROUP BY");
             }

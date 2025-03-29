@@ -85,7 +85,13 @@ public class SumOperator extends Operator {
      * Resolves the indices of group by columns and output columns.
      */
     private void resolveColumnIndices() {
-        String schemaId = propagateSchemaId();
+
+        String schemaId = child.propagateSchemaId();
+        groupByIndices.clear();
+        outputIndices.clear();
+
+        // Debug output to verify column resolution
+        System.out.println("DEBUG SUM: Resolving group by columns: " + groupByColumns);
 
         // Resolve group by column indices
         for (Column column : groupByColumns) {
@@ -98,10 +104,12 @@ public class SumOperator extends Operator {
                         " not found in schema " + schemaId);
             }
 
+            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
+                    columnName + " resolved to index " + index);
             groupByIndices.add(index);
         }
 
-        // Resolve output column indices
+
         for (Column column : outputColumns) {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
@@ -112,6 +120,8 @@ public class SumOperator extends Operator {
                         " not found in schema " + schemaId);
             }
 
+            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
+                    columnName + " resolved to index " + index);
             outputIndices.add(index);
         }
     }
@@ -178,11 +188,8 @@ public class SumOperator extends Operator {
             }
 
             // Get or create aggregates for this group
-            List<Integer> aggregates = groupAggregates.getOrDefault(groupKey, null);
-            if (aggregates == null) {
-                aggregates = new ArrayList<>(Collections.nCopies(sumExpressions.size(), 0));
-                groupAggregates.put(groupKey, aggregates);
-            }
+            List<Integer> aggregates = groupAggregates.computeIfAbsent(groupKey, k ->
+                    new ArrayList<>(Collections.nCopies(sumExpressions.size(), 0)));
 
             // Update aggregate values for this group
             for (int i = 0; i < sumExpressions.size(); i++) {
@@ -205,7 +212,6 @@ public class SumOperator extends Operator {
         // Initialize iterator for returning results
         resultIterator = groupAggregates.entrySet().iterator();
         processed = true;
-
     }
 
     /**
