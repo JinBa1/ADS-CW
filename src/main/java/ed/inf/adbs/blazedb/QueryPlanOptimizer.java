@@ -35,7 +35,7 @@ public class QueryPlanOptimizer {
 
         rootOp = pushSelectionsDown(rootOp);
         // Then, combine operators where possible
-//        rootOp = combineConsecutiveSelects(rootOp);
+        rootOp = combineConsecutiveSelects(rootOp);
 
         // Lastly, reorder operators to minimize intermediate results
         // Note: we must maintain the left-deep join tree with the original table order
@@ -232,16 +232,31 @@ public class QueryPlanOptimizer {
             List<Expression> splitConditions = splitAndConditions(condition);
 
             if (splitConditions.size() > 1) {
-                System.out.println("Splitting AND condition into " + splitConditions.size() + " parts");
+                System.out.println("Splitting AND condition into " + splitConditions.size() + " parts: " + splitConditions);
 
-                // Create a chain of SelectOperators
-                Operator child = selectOp.getChild();
+                // Get the underlying child
+                Operator baseChild = selectOp.getChild();
+
+                // Process each condition individually
                 for (Expression splitCondition : splitConditions) {
-                    child = new SelectOperator(child, splitCondition);
+                    System.out.println("Processing split condition: " + splitCondition);
+
+                    // Create a temporary SelectOperator for this condition
+                    SelectOperator tempSelect = new SelectOperator(baseChild, splitCondition);
+
+                    // Try to push it down
+                    Operator optimizedOp = pushSelectionsDown(tempSelect);
+
+                    // If optimization changed the operator type, it was pushed down
+                    if (!(optimizedOp instanceof SelectOperator)) {
+                        baseChild = optimizedOp;
+                    } else {
+                        // Couldn't push this selection down, keep it above the result so far
+                        baseChild = optimizedOp;
+                    }
                 }
 
-                // Now optimize each SelectOperator
-                return pushSelectionsDown(child);
+                return baseChild;
             }
 
             // Try to push the single selection down
