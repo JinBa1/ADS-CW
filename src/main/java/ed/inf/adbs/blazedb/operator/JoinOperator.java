@@ -17,7 +17,6 @@ public class JoinOperator extends Operator {
 
     private Tuple currentOuterTuple;
 
-    private String intermediateSchemaId;
 
 
 
@@ -27,7 +26,12 @@ public class JoinOperator extends Operator {
         this.expression = expression;
         currentOuterTuple = null;
 
-        registerJoinSchema();
+
+        this.child.ensureSchemaRegistered();
+        this.outerChild.ensureSchemaRegistered();
+
+        registerSchema();
+
         this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
     }
 
@@ -78,6 +82,7 @@ public class JoinOperator extends Operator {
 
     @Override
     public String propagateSchemaId() {
+        ensureSchemaRegistered();
         return intermediateSchemaId;
     }
 
@@ -116,13 +121,14 @@ public class JoinOperator extends Operator {
         this.outerChild = outerChild;
     }
 
+    @Override
+    protected void registerSchema() {
+        if (schemaRegistered) return;
 
-    private void registerJoinSchema() {
         String leftSchemaId = outerChild.propagateSchemaId();
         String rightSchemaId = child.propagateSchemaId();
-        String rightTableName = child.propagateTableName();
 
-        // Get the source schemas
+        // Get source schemas
         Map<String, Integer> leftSchemaMap = getSchemaMap(leftSchemaId);
         Map<String, Integer> rightSchemaMap = getSchemaMap(rightSchemaId);
 
@@ -130,32 +136,43 @@ public class JoinOperator extends Operator {
             throw new RuntimeException("Could not retrieve schemas for join");
         }
 
-        // Create combined schema (similar to existing code)
+        // Create combined schema
         Map<String, Integer> joinedSchema = new HashMap<>();
         Map<String, String> transformationDetails = new HashMap<>();
 
-        // Calculate left tuple size
-        int leftTupleSize = calculateTupleSize(leftSchemaMap);
+        // Calculate left tuple size for offset
+        int leftTupleSize = 0;
+        for (Integer index : leftSchemaMap.values()) {
+            leftTupleSize = Math.max(leftTupleSize, index + 1);
+        }
 
-        // Add left schema entries
+        // Add entries from both sources
         addSchemaEntries(joinedSchema, transformationDetails, leftSchemaMap, leftSchemaId, 0);
-
-        // Add right schema entries with offset
         addSchemaEntries(joinedSchema, transformationDetails, rightSchemaMap, rightSchemaId, leftTupleSize);
+
+        // Add join condition information
+        if (expression != null) {
+            transformationDetails.put("join_condition", expression.toString());
+        }
 
         // Register with transformation details
         intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
                 joinedSchema,
-                null, // No single parent for joins
+                null, // No single parent
                 SchemaTransformationType.JOIN,
                 transformationDetails
         );
 
-        // Also register the left and right schemas as "parent" schemas
+        // Register both parents
         DBCatalog catalog = DBCatalog.getInstance();
         catalog.addParentSchema(intermediateSchemaId, leftSchemaId);
         catalog.addParentSchema(intermediateSchemaId, rightSchemaId);
+
+        schemaRegistered = true;
+
+        // Remove the redundant initEvaluator method
     }
+
 
     private Map<String, Integer> getSchemaMap(String schemaId) {
         if (schemaId.startsWith("temp_")) {

@@ -1,12 +1,10 @@
 package ed.inf.adbs.blazedb.operator;
 
+import ed.inf.adbs.blazedb.DBCatalog;
+import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The DuplicateEliminationOperator implements the DISTINCT operation in SQL.
@@ -107,6 +105,35 @@ public class DuplicateEliminationOperator extends Operator {
      */
     @Override
     public String propagateSchemaId() {
-        return child.propagateSchemaId();
+        ensureSchemaRegistered();
+        return intermediateSchemaId;
+    }
+
+    @Override
+    protected void registerSchema() {
+        if (schemaRegistered) return;
+
+        // Duplicate elimination doesn't change schema structure
+        String childSchemaId = child.propagateSchemaId();
+        Map<String, Integer> childSchema;
+
+        if (childSchemaId.startsWith("temp_")) {
+            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
+        } else {
+            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
+        }
+
+        // Create identical schema structure
+        Map<String, Integer> distinctSchema = new HashMap<>(childSchema);
+
+        // Register with transformation details
+        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
+                distinctSchema,
+                childSchemaId,
+                SchemaTransformationType.OTHER,  // Or a new DISTINCT type
+                transformationDetails
+        );
+
+        schemaRegistered = true;
     }
 }

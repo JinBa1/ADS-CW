@@ -114,17 +114,19 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
 
-        Integer colIdx = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+        // Try to resolve using transformation-aware method
+        Integer colIdx = DBCatalog.getInstance().resolveColumnThroughTransformations(
+                schemaId, tableName, columnName);
 
         if (colIdx == null) {
-            throw new RuntimeException("Column '" + tableName + "." + columnName + " not found in schema " + schemaId);
+            // Fall back to direct resolution
+            colIdx = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
         }
 
-
-//        System.out.println("Column " + tableName + "." + columnName +
-//                " resolved to index " + colIdx +
-//                ", value: " + currentTuple.getAttribute(colIdx));
-
+        if (colIdx == null) {
+            throw new RuntimeException("Column '" + tableName + "." + columnName +
+                    " not found in schema " + schemaId);
+        }
 
         valueStack.push(currentTuple.getAttribute(colIdx));
     }

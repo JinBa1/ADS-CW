@@ -13,6 +13,10 @@ public abstract class Operator {
 
     protected int tupleCounter = 0;
 
+    // Add common schema fields
+    protected String intermediateSchemaId = null;
+    protected boolean schemaRegistered = false;
+
     /**
      * Retrieves the next tuple from the iterator.
      * @return A Tuple object representing the row of data, or NULL if EOF reached.
@@ -46,5 +50,18 @@ public abstract class Operator {
 
     public void setChild(Operator child) {
         this.child = child;
+    }
+
+    // NEW: Register schema during plan construction
+    protected void registerSchema() {
+        // Default implementation does nothing
+        // Override in operators that transform schemas
+    }
+
+    // Helper method to ensure schema is registered
+    protected final void ensureSchemaRegistered() {
+        if (!schemaRegistered) {
+            registerSchema();
+        }
     }
 }

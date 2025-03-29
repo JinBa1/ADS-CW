@@ -273,14 +273,53 @@ public class DBCatalog {
         List<String> lineage = getSchemaLineage(finalSchemaId);
         for (String schemaId : lineage) {
             SchemaTransformation transformation = getSchemaTransformation(schemaId);
-            if (transformation != null) {
-                // Use transformation details to resolve the column
-                // This logic would depend on the type of transformation
-                // ...
+            if (transformation == null) continue;
+
+            String columnKey = tableName + "." + columnName.toLowerCase();
+
+            switch (transformation.getType()) {
+                case PROJECTION:
+                    // In projection, source column is directly mapped
+                    String sourceIndexStr = transformation.getDetails().get(columnKey);
+                    if (sourceIndexStr != null) {
+                        return Integer.parseInt(sourceIndexStr);
+                    }
+                    break;
+
+                case JOIN:
+                    // For joins, need to check which parent schema contains the column
+                    Map<String, String> details = transformation.getDetails();
+                    String sourceInfo = details.get(columnKey);
+                    if (sourceInfo != null && sourceInfo.contains(":")) {
+                        String[] parts = sourceInfo.split(":");
+                        String sourceSchemaId = parts[0];
+                        int sourceIndex = Integer.parseInt(parts[1]);
+                        return sourceIndex;
+                    }
+                    break;
+
+                case AGGREGATION:
+                    // For aggregation, check if it's a group by column
+                    String groupInfo = transformation.getDetails().get(columnKey);
+                    if (groupInfo != null && groupInfo.startsWith("group_by:")) {
+                        String sourceIndex = groupInfo.substring("group_by:".length());
+                        return Integer.parseInt(sourceIndex);
+                    }
+                    break;
+
+                case OTHER:
+                    // For selections and other transformations that don't change structure
+                    // Just delegate to parent schema
+                    String parentId = getParentSchemaId(schemaId);
+                    if (parentId != null) {
+                        return resolveColumnIndex(parentId, tableName, columnName);
+                    }
+                    break;
             }
         }
 
-        return null; // Column not found in any schema in the lineage
+        // If we get here, we couldn't resolve through transformations
+        return null;
     }
 
     // Add a parent schema (for operators with multiple inputs like JOIN)

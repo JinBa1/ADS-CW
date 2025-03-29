@@ -223,6 +223,9 @@ public class QueryPlanner {
             e.printStackTrace();
         }
 
+
+        ensureAllSchemasRegistered(rootOp);
+
         if (Constants.useQueryOptimization) {  // Add this constant
             System.out.println("Applying query plan optimization...");
             System.out.println("Original plan:");
@@ -482,6 +485,25 @@ public class QueryPlanner {
         if (op instanceof JoinOperator) {
             JoinOperator joinOp = (JoinOperator) op;
             printQueryPlan(joinOp.getOuterChild(), indent + 1);
+        }
+    }
+
+
+
+    private static void ensureAllSchemasRegistered(Operator op) {
+        if (op == null) return;
+
+        // Force schema registration
+        op.ensureSchemaRegistered();
+
+        // Process children
+        if (op.hasChild()) {
+            ensureAllSchemasRegistered(op.getChild());
+        }
+
+        // Special case for JoinOperator
+        if (op instanceof JoinOperator) {
+            ensureAllSchemasRegistered(((JoinOperator) op).getOuterChild());
         }
     }
 

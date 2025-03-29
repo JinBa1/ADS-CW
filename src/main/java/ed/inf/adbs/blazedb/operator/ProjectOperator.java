@@ -17,21 +17,21 @@ public class ProjectOperator extends Operator {
     private List<Column> columns;
     private List<Integer> resolvedIndices;
     private boolean indicesResolved;
-    private String intermediateSchemaId; // Add this field
-    private boolean schemaRegistered = false; // Add this field
+
+
 
     public ProjectOperator(Operator child, List<Column> columns) {
         this.child = child;
         this.columns = columns;
-        indicesResolved = false;
 
-        resolveColumnIndices();
-        registerProjectSchema();
+        this.child.ensureSchemaRegistered();
+
+        registerSchema();
+
     }
 
     @Override
     public Tuple getNextTuple() {
-
         Tuple nextTuple = child.getNextTuple();
         if (nextTuple == null) {
             return null;
@@ -42,7 +42,7 @@ public class ProjectOperator extends Operator {
             projectedColumns.add(nextTuple.getAttribute(index));
         }
 
-        tupleCounter ++;
+        tupleCounter++;
         return new Tuple(projectedColumns);
     }
 
@@ -58,20 +58,14 @@ public class ProjectOperator extends Operator {
 
     @Override
     public String propagateSchemaId() {
-        // Only return our intermediate schema if it's been registered
-        if (schemaRegistered) {
-            return intermediateSchemaId;
-        }
-        // Otherwise, return the child's schema (used by resolveColumnIndices)
-        return child.propagateSchemaId();
+        ensureSchemaRegistered();
+        return intermediateSchemaId;
     }
 
     private void resolveColumnIndices() {
-        if (indicesResolved) {
-            return;
-        }
+        if (indicesResolved) return;
 
-        // Important: Use child.propagateSchemaId() directly here to avoid recursion
+        // Use child.propagateSchemaId() directly to avoid recursion
         String schemaId = child.propagateSchemaId();
         resolvedIndices = new ArrayList<>();
 
@@ -79,17 +73,8 @@ public class ProjectOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            // Debug print to see what we're looking for
-//            System.out.println("ProjectOperator resolving: " + tableName + "." + columnName +
-//                    " in schema " + schemaId);
-
             Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
-                // Print available columns to help debugging
-                Map<String, Integer> schemaMap = DBCatalog.getInstance().getDBSchemata(tableName);
-                System.out.println("Available columns in schema " + tableName + ": " +
-                        (schemaMap != null ? schemaMap.keySet() : "schema not found"));
-
                 throw new RuntimeException("Column " + tableName + "." + columnName +
                         " not found in schema " + schemaId);
             }
@@ -98,16 +83,15 @@ public class ProjectOperator extends Operator {
         }
 
         indicesResolved = true;
-
-        // Once indices are resolved, register our projected schema
-        registerProjectSchema();
     }
 
     // New method to register the projected schema
-    private void registerProjectSchema() {
-        if (schemaRegistered) {
-            return;
-        }
+    @Override
+    protected void registerSchema() {
+        if (schemaRegistered) return;
+
+        // First, resolve column indices
+        resolveColumnIndices();
 
         // Create a new mapping for the projected columns
         Map<String, Integer> projectedSchema = new HashMap<>();
@@ -126,10 +110,13 @@ public class ProjectOperator extends Operator {
             // Record the source -> target mapping for this column
             String sourceSchemaId = child.propagateSchemaId();
             Integer sourceIndex = DBCatalog.resolveColumnIndex(sourceSchemaId, tableName, columnName);
+            if (sourceIndex == null) {
+                throw new RuntimeException("Column " + tableName + "." + columnName +
+                        " not found in schema " + sourceSchemaId);
+            }
             transformationDetails.put(key, sourceIndex.toString());
         }
 
-        // Register this schema with DBCatalog
         // Register this schema with DBCatalog, including transformation details
         intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
                 projectedSchema,

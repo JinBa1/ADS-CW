@@ -1,12 +1,15 @@
 package ed.inf.adbs.blazedb.operator;
 
 import ed.inf.adbs.blazedb.DBCatalog;
+import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 import ed.inf.adbs.blazedb.TupleComparator;
 import net.sf.jsqlparser.schema.Column;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SortOperator extends Operator {
 
@@ -55,7 +58,8 @@ public class SortOperator extends Operator {
 
     @Override
     public String propagateSchemaId() {
-        return child.propagateSchemaId();
+        ensureSchemaRegistered();
+        return intermediateSchemaId;
     }
 
     private void bufferTuple() {
@@ -101,5 +105,41 @@ public class SortOperator extends Operator {
 
         indicesResolved = true;
 
+    }
+
+    @Override
+    protected void registerSchema() {
+        if (schemaRegistered) return;
+
+        // Sort doesn't change schema structure
+        String childSchemaId = child.propagateSchemaId();
+        Map<String, Integer> childSchema;
+
+        if (childSchemaId.startsWith("temp_")) {
+            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
+        } else {
+            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
+        }
+
+        // Create identical schema structure
+        Map<String, Integer> sortSchema = new HashMap<>(childSchema);
+
+        // Add details about sort columns
+        Map<String, String> transformationDetails = new HashMap<>();
+        for (int i = 0; i < sortColumns.size(); i++) {
+            Column col = sortColumns.get(i);
+            transformationDetails.put("sort_" + i, col.getTable().getName() +
+                    "." + col.getColumnName().toLowerCase());
+        }
+
+        // Register with transformation details
+        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
+                sortSchema,
+                childSchemaId,
+                SchemaTransformationType.OTHER,  // Or a new SORT type
+                transformationDetails
+        );
+
+        schemaRegistered = true;
     }
 }

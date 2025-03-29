@@ -20,6 +20,9 @@ public class ScanOperator extends Operator {
         tablePath = DBCatalog.getInstance().getDBLocation(tableName);
         child = null; // Scan cannot have child operator
 
+        this.schemaRegistered = true;
+        this.intermediateSchemaId = tableName;
+
         openReader();
     }
 
@@ -92,5 +95,10 @@ public class ScanOperator extends Operator {
 
     public void close() {
         closeReader();
+    }
+
+    @Override
+    protected void registerSchema() {
+        this.schemaRegistered = true;
     }
 }
