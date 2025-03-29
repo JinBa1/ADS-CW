@@ -29,6 +29,12 @@ public class DuplicateEliminationOperator extends Operator {
         this.child = child;
         this.uniqueTuples = new ArrayList<>();
         this.processed = false;
+
+        // Ensure child schema is registered
+        this.child.ensureSchemaRegistered();
+
+        // Register our schema
+        registerSchema();
     }
 
     /**
@@ -125,6 +131,10 @@ public class DuplicateEliminationOperator extends Operator {
 
         // Create identical schema structure
         Map<String, Integer> distinctSchema = new HashMap<>(childSchema);
+
+        // Create details about distinct operation (minimal)
+        Map<String, String> transformationDetails = new HashMap<>();
+        transformationDetails.put("distinct", "true");
 
         // Register with transformation details
         intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(

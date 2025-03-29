@@ -90,10 +90,12 @@ public class ProjectOperator extends Operator {
     protected void registerSchema() {
         if (schemaRegistered) return;
 
-        // First, resolve column indices
-        resolveColumnIndices();
+        // First, resolve column indices if not already done
+        if (!indicesResolved) {
+            resolveColumnIndices();
+        }
 
-        // Create a new mapping for the projected columns
+        // Create schema for projection result
         Map<String, Integer> projectedSchema = new HashMap<>();
         Map<String, String> transformationDetails = new HashMap<>();
 
@@ -109,11 +111,7 @@ public class ProjectOperator extends Operator {
 
             // Record the source -> target mapping for this column
             String sourceSchemaId = child.propagateSchemaId();
-            Integer sourceIndex = DBCatalog.resolveColumnIndex(sourceSchemaId, tableName, columnName);
-            if (sourceIndex == null) {
-                throw new RuntimeException("Column " + tableName + "." + columnName +
-                        " not found in schema " + sourceSchemaId);
-            }
+            Integer sourceIndex = resolvedIndices.get(i);
             transformationDetails.put(key, sourceIndex.toString());
         }
 

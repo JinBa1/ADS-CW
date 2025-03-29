@@ -93,26 +93,6 @@ public class JoinOperator extends Operator {
         return new Tuple(combinedAttributes);
     }
 
-    private void initEvaluator() {
-
-        String leftSchemaId = outerChild.propagateSchemaId();
-        String rightSchemaId = child.propagateSchemaId();
-        String rightTableName = child.propagateTableName();
-
-        DBCatalog catalog = DBCatalog.getInstance();
-        this.intermediateSchemaId = catalog.registerJoinSchema(leftSchemaId, rightSchemaId, rightTableName);
-
-        if (intermediateSchemaId == null) {
-            throw new RuntimeException("Could not register join schema for " + leftSchemaId + " and " + rightSchemaId);
-        }
-
-        this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
-
-        child.reset();
-        outerChild.reset();
-
-    }
-
     public Operator getOuterChild() {
         return outerChild;
     }

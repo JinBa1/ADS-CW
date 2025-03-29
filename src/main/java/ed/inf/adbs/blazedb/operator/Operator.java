@@ -59,7 +59,7 @@ public abstract class Operator {
     }
 
     // Helper method to ensure schema is registered
-    protected final void ensureSchemaRegistered() {
+    public final void ensureSchemaRegistered() {
         if (!schemaRegistered) {
             registerSchema();
         }

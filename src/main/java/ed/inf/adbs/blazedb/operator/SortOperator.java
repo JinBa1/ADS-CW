@@ -28,6 +28,12 @@ public class SortOperator extends Operator {
         currentTupleIndex = 0;
         buffered = false;
         indicesResolved = false;
+
+        // Ensure child schema is registered
+        this.child.ensureSchemaRegistered();
+
+        // Register our schema
+        registerSchema();
     }
 
     @Override
