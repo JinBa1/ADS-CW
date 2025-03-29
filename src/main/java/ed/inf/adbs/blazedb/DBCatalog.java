@@ -275,7 +275,7 @@ public class DBCatalog {
                                                        String tableName,
                                                        String columnName) {
         // First try direct resolution in the final schema
-        Integer directIndex = resolveColumnIndex(finalSchemaId, tableName, columnName);
+        Integer directIndex = smartResolveColumnIndex(finalSchemaId, tableName, columnName);
         if (directIndex != null) {
             return directIndex;
         }
@@ -323,7 +323,7 @@ public class DBCatalog {
                     // Just delegate to parent schema
                     String parentId = getParentSchemaId(schemaId);
                     if (parentId != null) {
-                        return resolveColumnIndex(parentId, tableName, columnName);
+                        return smartResolveColumnIndex(parentId, tableName, columnName);
                     }
                     break;
             }
@@ -342,5 +342,31 @@ public class DBCatalog {
     // Get all parent schemas (useful for joins)
     public List<String> getAllParentSchemas(String schemaId) {
         return schemaMultiParentMap.getOrDefault(schemaId, Collections.emptyList());
+    }
+
+    public static Integer smartResolveColumnIndex(String schemaId, String tableName, String columnName) {
+        DBCatalog catalog = DBCatalog.getInstance();
+        Map<String, Integer> schema = catalog.getSchema(schemaId);
+        System.out.println("DEBUG RESOLVE: Looking for column " + tableName + "." + columnName + " in schema " + schemaId);
+        if (schema == null) return null;
+
+        // Try qualified name first
+        String qualifiedKey = tableName + "." + columnName.toLowerCase();
+        Integer index = schema.get(qualifiedKey);
+
+        // If not found, try just the column name
+        if (index == null) {
+            index = schema.get(columnName.toLowerCase());
+        }
+
+        return index;
+    }
+
+    private Map<String, Integer> getSchema(String schemaId) {
+        if (schemaId.startsWith("temp_")) {
+            return intermediateSchemata.get(schemaId);
+        } else {
+            return dBSchemata.get(schemaId);
+        }
     }
 }

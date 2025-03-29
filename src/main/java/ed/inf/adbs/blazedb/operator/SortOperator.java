@@ -101,7 +101,7 @@ public class SortOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+            Integer index = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
                 throw new RuntimeException("Column " + tableName + ", " + columnName + " not found in schema " + schemaId);
             }

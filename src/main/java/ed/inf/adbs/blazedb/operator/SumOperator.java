@@ -92,7 +92,7 @@ public class SumOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+            Integer index = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
                 throw new RuntimeException("Column " + tableName + "." + columnName +
                         " not found in schema " + schemaId);
@@ -106,7 +106,7 @@ public class SumOperator extends Operator {
             String tableName = column.getTable().getName();
             String columnName = column.getColumnName();
 
-            Integer index = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+            Integer index = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
             if (index == null) {
                 throw new RuntimeException("Column " + tableName + "." + columnName +
                         " not found in schema " + schemaId);
@@ -265,7 +265,7 @@ public class SumOperator extends Operator {
                 resultSchema.put(key, colIndex);
 
                 // Record source column
-                Integer sourceIndex = DBCatalog.resolveColumnIndex(childSchemaId, tableName, columnName);
+                Integer sourceIndex = DBCatalog.smartResolveColumnIndex(childSchemaId, tableName, columnName);
                 if (sourceIndex == null) {
                     throw new RuntimeException("Column " + tableName + "." + columnName +
                             " not found in schema " + childSchemaId);

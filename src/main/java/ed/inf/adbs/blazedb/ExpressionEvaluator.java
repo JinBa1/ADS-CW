@@ -120,7 +120,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
 
         if (colIdx == null) {
             // Fall back to direct resolution
-            colIdx = DBCatalog.resolveColumnIndex(schemaId, tableName, columnName);
+            colIdx = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
         }
 
         if (colIdx == null) {
