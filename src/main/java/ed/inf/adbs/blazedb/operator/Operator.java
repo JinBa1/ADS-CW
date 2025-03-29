@@ -64,4 +64,15 @@ public abstract class Operator {
             registerSchema();
         }
     }
+
+    public void updateSchema() {
+        // Base implementation: re-register schema and propagate to child
+        this.schemaRegistered = false;
+        registerSchema();
+
+        // Propagate to child if exists
+        if (this.hasChild()) {
+            this.child.updateSchema();
+        }
+    }
 }

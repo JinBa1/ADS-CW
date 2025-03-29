@@ -118,6 +118,11 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         Integer colIdx = DBCatalog.getInstance().resolveColumnThroughTransformations(
                 schemaId, tableName, columnName);
 
+        System.out.println("DEBUG EVAL: Looking up column " + tableName + "." + columnName +
+                " in schema " + schemaId + ", resolved to index: " + colIdx);
+        System.out.println("DEBUG EVAL: Current tuple size: " + currentTuple.getTuple().size() +
+                ", tuple: " + currentTuple);
+
         if (colIdx == null) {
             // Fall back to direct resolution
             colIdx = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);

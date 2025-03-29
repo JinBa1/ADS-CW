@@ -36,6 +36,8 @@ public class QueryPlanOptimizer {
         rootOp = pushSelectionsDown(rootOp);
 
         rootOp = pushProjectionsDown(rootOp);
+
+        rootOp.updateSchema();
         // Then, combine operators where possible
         rootOp = combineConsecutiveSelects(rootOp);
 
@@ -601,6 +603,8 @@ public class QueryPlanOptimizer {
 
             // Update the project operator's child
             projectOp.setChild(optimizedChild);
+
+
 
             System.out.println("Projection pushdown optimization complete.");
             return projectOp;

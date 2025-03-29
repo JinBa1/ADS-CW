@@ -47,8 +47,13 @@ public class JoinOperator extends Operator {
             child.reset();
         }
 
+
         while (true) {
             Tuple innerTuple = child.getNextTuple();
+            System.out.println("DEBUG: Inner tuple: " + (innerTuple == null ? "null" : innerTuple) +
+                    ", columns: " + (innerTuple == null ? "n/a" : innerTuple.getTuple().size()));
+
+
             if (innerTuple == null) {
                 currentOuterTuple = outerChild.getNextTuple();
                 if (currentOuterTuple == null) {
@@ -59,6 +64,9 @@ public class JoinOperator extends Operator {
             }
             Tuple combined = combineTuples(currentOuterTuple, innerTuple);
 //            System.out.println("JoinOperator: evaluating: " + combined);
+
+            System.out.println("DEBUG: Combined tuple: " + combined +
+                    ", columns: " + combined.getTuple().size());
 
             if (expression == null  || evaluator.evaluate(expression, combined)) {
 //                System.out.println("JoinOperator: returning combined tuple: " + combined);
@@ -219,5 +227,25 @@ public class JoinOperator extends Operator {
 
     public void setJoinCondition(Expression expression) {
         this.expression = expression;
+    }
+
+    @Override
+    public void updateSchema() {
+        // Reset schema registration flag
+        this.schemaRegistered = false;
+
+        // Update children first
+        if (this.outerChild != null) {
+            this.outerChild.updateSchema();
+        }
+        if (this.child != null) {
+            this.child.updateSchema();
+        }
+
+        // Re-register schema based on updated children
+        registerSchema();
+
+        // Create a new evaluator with the updated schema
+        this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
     }
 }
