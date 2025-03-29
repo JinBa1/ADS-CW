@@ -24,6 +24,8 @@ public class DBCatalog {
 
     private final Map<String, List<String>> schemaMultiParentMap;
 
+    private final Map<String, Map<String, String>> columnOriginMap;
+
 
     private DBCatalog() {
         dBLocations = new HashMap<>();
@@ -35,6 +37,8 @@ public class DBCatalog {
         schemaTransformations = new HashMap<>();
 
         schemaMultiParentMap = new HashMap<>();
+
+        columnOriginMap = new HashMap<>();
     }
 
     public static DBCatalog getInstance() {
@@ -246,6 +250,17 @@ public class DBCatalog {
         // Record transformation details
         schemaTransformations.put(schemaId, new SchemaTransformation(type, transformationDetails));
 
+        // Track column origins for the new schema
+        Map<String, String> originMap = new HashMap<>();
+        columnOriginMap.put(schemaId, originMap);
+
+        // For each column in the new schema, record its origin
+        for (Map.Entry<String, String> detail : transformationDetails.entrySet()) {
+            if (detail.getKey().contains(".")) {
+                originMap.put(detail.getKey(), detail.getKey()); // Self-reference for existing qualified names
+            }
+        }
+
         return schemaId;
     }
 
@@ -368,5 +383,34 @@ public class DBCatalog {
         } else {
             return dBSchemata.get(schemaId);
         }
+    }
+
+    // Enhanced method to resolve columns considering origins
+    public Integer resolveColumnWithOrigins(String schemaId, String tableName, String columnName) {
+        // Try direct resolution first
+        Integer directIndex = smartResolveColumnIndex(schemaId, tableName, columnName);
+        if (directIndex != null) return directIndex;
+
+        // Try resolving through origin tracking
+        Map<String, String> originMap = columnOriginMap.get(schemaId);
+        if (originMap != null) {
+            String lookupKey = tableName + "." + columnName.toLowerCase();
+
+            // Look for any column that maps to this original name
+            for (Map.Entry<String, String> entry : originMap.entrySet()) {
+                if (entry.getValue().equalsIgnoreCase(lookupKey)) {
+                    return getIntermediateSchema(schemaId).get(entry.getKey());
+                }
+            }
+        }
+
+        // Try parent schemas if needed
+        List<String> parents = getAllParentSchemas(schemaId);
+        for (String parent : parents) {
+            Integer parentResult = resolveColumnWithOrigins(parent, tableName, columnName);
+            if (parentResult != null) return parentResult;
+        }
+
+        return null;
     }
 }
