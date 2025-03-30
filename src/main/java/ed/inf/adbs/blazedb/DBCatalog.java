@@ -33,7 +33,6 @@ public class DBCatalog {
 
     // Add schema transformation tracking
     private final Map<String, String> schemaParentMap; // child schema ID -> parent schema ID
-    private final Map<String, SchemaTransformation> schemaTransformations; // schema ID -> transformation details
 
     private final Map<String, List<String>> schemaMultiParentMap;
 
@@ -50,7 +49,6 @@ public class DBCatalog {
 
 
         schemaParentMap = new HashMap<>();
-        schemaTransformations = new HashMap<>();
 
         schemaMultiParentMap = new HashMap<>();
 
@@ -189,6 +187,7 @@ public class DBCatalog {
 
 
     /**
+     * Helper method for registering schema transformation.
      * Registers an intermediate schema created during query processing.
      * Intermediate schemas are used by operators like Project and Join
      * that transform the structure of input data.
@@ -238,9 +237,6 @@ public class DBCatalog {
         if (parentSchemaId != null) {
             schemaParentMap.put(schemaId, parentSchemaId);
         }
-
-        // Record transformation details
-        schemaTransformations.put(schemaId, new SchemaTransformation(type, transformationDetails));
 
         // Track column origins for the new schema
         Map<String, String> originMap = new HashMap<>();

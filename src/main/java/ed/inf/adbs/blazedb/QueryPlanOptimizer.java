@@ -30,8 +30,7 @@ public class QueryPlanOptimizer {
 
         // Apply optimization rules in a specific order
         // First, remove trivial operators
-        rootOp = removeUnnecessaryProjects(rootOp);
-        rootOp = removeUnnecessarySelects(rootOp);
+
 
         rootOp = pushSelectionsDown(rootOp);
 
@@ -40,6 +39,9 @@ public class QueryPlanOptimizer {
         rootOp.updateSchema();
         // Then, combine operators where possible
         rootOp = combineConsecutiveSelects(rootOp);
+
+        rootOp = removeUnnecessaryProjects(rootOp);
+        rootOp = removeUnnecessarySelects(rootOp);
 
         // Lastly, reorder operators to minimize intermediate results
         // Note: we must maintain the left-deep join tree with the original table order
