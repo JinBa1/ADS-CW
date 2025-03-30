@@ -12,24 +12,49 @@ import net.sf.jsqlparser.schema.Column;
 import java.util.Map;
 import java.util.Stack;
 
+/**
+ * The ExpressionEvaluator class evaluates SQL expressions against tuples during query execution.
+ * This class is responsible for determining:
+ * 1. Whether a tuple satisfies a condition (for selection and join operations)
+ * 2. The value of an expression (for aggregation and projection operations)
+ * It implements the visitor pattern to traverse expression trees, handling various
+ * expression types such as comparisons, logical operators, column references, and literals.
+ * The evaluator resolves column references using schema information and then applies
+ * the appropriate operators to compute results.
+ * This class supports both boolean evaluation for filtering operations and numeric
+ * evaluation for aggregate calculations. It maintains internal stacks to track
+ * intermediate results during expression tree traversal.
+ */
 public class ExpressionEvaluator extends ExpressionVisitorAdapter {
 
     private Tuple currentTuple;
-    private Stack<Boolean> resultStack;
-    private Stack<Integer> valueStack;
+    private final Stack<Boolean> resultStack;
+    private final Stack<Integer> valueStack;
 
-    private String schemaId;
+    private final String schemaId;
 
-    public ExpressionEvaluator() {
-        this(null);
-    }
-
+    /**
+     * Constructs an ExpressionEvaluator with the specified schema identifier.
+     * The schema identifier is used to resolve column references to their positions
+     * in the tuple being evaluated.
+     * @param schemaId The schema identifier for column resolution
+     */
     public ExpressionEvaluator(String schemaId) {
         resultStack = new Stack<>();
         valueStack = new Stack<>();
         this.schemaId = schemaId;
     }
 
+
+    /**
+     * Evaluates an expression to determine if a tuple satisfies the condition.
+     * Traverses the expression tree, resolving column references and applying
+     * operators to compute a boolean result.
+     * @param expression The expression to evaluate (e.g., column > value)
+     * @param tuple The tuple to evaluate against
+     * @return true if the tuple satisfies the condition, false otherwise
+     * @throws RuntimeException If the expression evaluation fails
+     */
     public boolean evaluate(Expression expression, Tuple tuple) {
         System.out.println("Evaluating expression with schema ID: " + this.schemaId);
         System.out.println("Actual tuple: " + tuple);
@@ -50,7 +75,14 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         return resultStack.pop();
     }
 
-
+    /**
+     * Evaluates an expression to determine its numeric value for a tuple.
+     * Used for computing aggregate values and expression results.
+     * @param expression The expression to evaluate (e.g., column or column*constant)
+     * @param tuple The tuple to evaluate against
+     * @return The numeric result of evaluating the expression
+     * @throws RuntimeException If the expression evaluation does not produce a value
+     */
     public Integer evaluateValue(Expression expression, Tuple tuple) {
         // may need to check for expression type, but with assignment assumption should be safe
         // what if a logical expressin is given? may want to guard that
@@ -67,6 +99,12 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         return valueStack.pop();
     }
 
+    /**
+     * Visits an AND expression and evaluates both operands.
+     * Uses short-circuit evaluation: if the left operand is false,
+     * the right operand is not evaluated.
+     * @param andExpression The AND expression to evaluate
+     */
     @Override
     public void visit(AndExpression andExpression) {
         andExpression.getLeftExpression().accept(this);
@@ -83,48 +121,78 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         resultStack.push(rightResult); // left is always true at this point
     }
 
+    /**
+     * Visits an equals comparison expression.
+     * @param equalsTo The equals comparison to evaluate
+     */
     @Override
     public void visit(EqualsTo equalsTo) {
         visitBinaryExpression(equalsTo);
     }
 
+    /**
+     * Visits a not-equals comparison expression.
+     * @param notEqualsTo The not-equals comparison to evaluate
+     */
     @Override
     public void visit(NotEqualsTo notEqualsTo) {
         visitBinaryExpression(notEqualsTo);
     }
 
+    /**
+     * Visits a greater-than comparison expression.
+     * @param greaterThan The greater-than comparison to evaluate
+     */
     @Override
     public void visit(GreaterThan greaterThan) {
         visitBinaryExpression(greaterThan);
     }
 
+    /**
+     * Visits a greater-than-or-equals comparison expression.
+     * @param greaterThanEquals The greater-than-or-equals comparison to evaluate
+     */
     @Override
     public void visit(GreaterThanEquals greaterThanEquals) {
         visitBinaryExpression(greaterThanEquals);
     }
 
+    /**
+     * Visits a less-than comparison expression.
+     * @param minorThan The less-than comparison to evaluate
+     */
     @Override
     public void visit(MinorThan minorThan) {
         visitBinaryExpression(minorThan);
     }
 
+    /**
+     * Visits a less-than-or-equals comparison expression.
+     * @param minorThanEquals The less-than-or-equals comparison to evaluate
+     */
     @Override
     public void visit(MinorThanEquals minorThanEquals) {
         visitBinaryExpression(minorThanEquals);
     }
 
+    /**
+     * Visits a column reference and resolves it to a value in the current tuple.
+     * Uses schema information to determine the column's position in the tuple.
+     * @param column The column reference to resolve
+     * @throws RuntimeException If the column cannot be resolved
+     */
     @Override
     public void visit(Column column) {
         String tableName = column.getTable().getName();
         String columnName = column.getColumnName();
 
-        Integer colIdx = DBCatalog.smartResolveColumnIndex(schemaId, tableName, columnName);
+        Integer colIdx = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
 
 
-        System.out.println("DEBUG EVAL: Looking up column " + tableName + "." + columnName +
-                " in schema " + schemaId + ", resolved to index: " + colIdx);
-        System.out.println("DEBUG EVAL: Current tuple size: " + currentTuple.getTuple().size() +
-                ", tuple: " + currentTuple);
+//        System.out.println("DEBUG EVAL: Looking up column " + tableName + "." + columnName +
+//                " in schema " + schemaId + ", resolved to index: " + colIdx);
+//        System.out.println("DEBUG EVAL: Current tuple size: " + currentTuple.getTuple().size() +
+//                ", tuple: " + currentTuple);
 
         if (colIdx == null) {
             // If not found, try looking for the column by its name only
@@ -151,11 +219,21 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         valueStack.push(currentTuple.getAttribute(colIdx));
     }
 
+    /**
+     * Visits a long literal value and pushes it onto the value stack.
+     * @param longValue The long literal to evaluate
+     */
     @Override
     public void visit(LongValue longValue) {
         valueStack.push(Long.valueOf(longValue.getValue()).intValue());
     }
 
+    /**
+     * Visits a binary expression and evaluates it based on its specific type.
+     * Handles comparison operators (=, !=, >, >=, <, <=) and multiplication.
+     * @param expression The binary expression to evaluate
+     * @throws UnsupportedOperationException If the expression type is not supported
+     */
     @Override
     public void visitBinaryExpression(BinaryExpression expression) {
         expression.getLeftExpression().accept(this);
@@ -192,6 +270,12 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
     }
 
+    /**
+     * Retrieves the schema mapping for a given schema ID.
+     * Handles both intermediate schemas (temp_*) and base table schemas.
+     * @param schemaId The schema ID to retrieve
+     * @return The schema mapping, or null if not found
+     */
     private Map<String, Integer> getSchemaMap(String schemaId) {
         if (schemaId == null) return null;
         if (schemaId.startsWith("temp_")) {
@@ -201,6 +285,10 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
     }
 
+    /**
+     * Gets the schema identifier associated with this evaluator.
+     * @return The schema identifier
+     */
     public String getSchemaId() {
         return schemaId;
     }
