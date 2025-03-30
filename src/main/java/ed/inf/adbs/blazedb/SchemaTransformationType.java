@@ -1,6 +1,22 @@
 package ed.inf.adbs.blazedb;
 
-// Transformation type enum
+/**
+ * Enum representing the types of schema transformations that can occur during query processing
+ * The schema transformation type is used to track how operator actions change the schema structure
+ * This information helps with column resolution and optimization during query execution
+ * @see SchemaTransformation for usage
+ */
 public enum SchemaTransformationType {
-    PROJECTION, JOIN, AGGREGATION, OTHER
+
+    // projection which select a subset of columns
+    PROJECTION,
+
+    // joins which combine multiple schemas
+    JOIN,
+
+    // aggregation which group and aggregate data
+    AGGREGATION,
+
+    // used by operations that don't change schema structure
+    OTHER
 }
