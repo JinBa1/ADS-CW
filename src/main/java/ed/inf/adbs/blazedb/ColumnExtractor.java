@@ -10,13 +10,11 @@ import java.util.List;
  * The ColumnExtractor class is a utility visitor for extracting column references from expressions.
  * It extends JSqlParser's ExpressionVisitorAdapter to traverse the expression tree and collect
  * all Column objects encountered.
- *
  * This utility is particularly useful for analyzing expressions to determine which columns are
  * referenced, which is essential for operations like:
  * - Projection push-down optimization
  * - Join condition analysis
  * - Identifying columns required for expression evaluation
- *
  * The class follows the visitor pattern, where the expression object accepts this visitor,
  * and the visit methods are called for each expression node in the tree.
  */

@@ -18,10 +18,8 @@ import ed.inf.adbs.blazedb.operator.Operator;
 
 /**
  * Lightweight in-memory database system.
- *
  * Feel free to modify/move the provided functions. However, you must keep
  * the existing command-line interface, which consists of three arguments.
- *
  */
 public class BlazeDB {
 
