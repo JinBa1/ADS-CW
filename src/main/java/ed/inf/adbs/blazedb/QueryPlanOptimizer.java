@@ -131,27 +131,54 @@ public class QueryPlanOptimizer {
             return false;
         }
 
+        // If the child is a SumOperator, never consider the projection trivial
+        if (childOp instanceof SumOperator) {
+            return false;
+        }
+
         String childSchemaId = childOp.propagateSchemaId();
+        Map<String, Integer> childSchema;
 
         if (childSchemaId.startsWith("temp_")) {
             // For intermediate schemas
-            Map<String, Integer> childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
-            if (childSchema == null) {
-                return false;
-            }
-
-            // If projecting all columns, check if counts match
-            return childSchema.size() == projectedColumns.size();
+            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
         } else {
             // For base table schemas
-            Map<String, Integer> childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
-            if (childSchema == null) {
-                return false;
+            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
+        }
+
+        if (childSchema == null) {
+            return false;
+        }
+
+        // First check: Count must match
+        if (childSchema.size() != projectedColumns.size()) {
+            return false;
+        }
+
+        // Second check: For each projected column, verify it exists in the
+        // child schema and is at the expected position
+        for (int i = 0; i < projectedColumns.size(); i++) {
+            Column column = projectedColumns.get(i);
+            String tableName = column.getTable().getName();
+            String columnName = column.getColumnName().toLowerCase();
+            String fullName = tableName + "." + columnName;
+
+            // Check if this column exists in the schema
+            Integer index = childSchema.get(columnName);
+            if (index == null) {
+                // Try the fully qualified name
+                index = childSchema.get(fullName);
             }
 
-            // If projecting all columns, check if counts match
-            return childSchema.size() == projectedColumns.size();
+            // If column not found or at different position, not trivial
+            if (index == null || index != i) {
+                return false;
+            }
         }
+
+        // If we get here, the projection preserves all columns in their original order
+        return true;
     }
 
     /**
@@ -662,7 +689,7 @@ public class QueryPlanOptimizer {
         }
 
         // Early termination: Stop if we encounter operators that would not have ProjectOperator below them
-        if (op instanceof JoinOperator || op instanceof ScanOperator || op instanceof SelectOperator || op instanceof SumOperator) {
+        if (op instanceof JoinOperator || op instanceof ScanOperator || op instanceof SelectOperator) {
             return null;
         }
 
