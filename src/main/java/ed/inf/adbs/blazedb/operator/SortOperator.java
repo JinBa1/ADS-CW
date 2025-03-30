@@ -148,4 +148,8 @@ public class SortOperator extends Operator {
 
         schemaRegistered = true;
     }
+
+    public List<Column> getSortColumns() {
+        return sortColumns;
+    }
 }

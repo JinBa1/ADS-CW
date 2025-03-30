@@ -94,6 +94,13 @@ public class QueryPlanner {
                     List<Expression> sumExpressions = extractSumExpressions(select);
                     List<Column> outputColumns = extractNonAggregateColumns(select);
 
+                    Set<Column> requiredColumns = getRequiredColumnsForSum(groupByColumns, sumExpressions, select);
+
+                    Operator childOp = rootOp;
+                    rootOp = new ProjectOperator(childOp, new ArrayList<>(requiredColumns));
+                    System.out.println("++ Project operator added for group by.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+
                     rootOp = new SumOperator(rootOp, groupByColumns, sumExpressions, outputColumns);
                     System.out.println("++ Group by operator with SUM aggregation added.");
                     System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
@@ -103,6 +110,13 @@ public class QueryPlanner {
                     List<Column> groupByColumns = new ArrayList<>(); // Empty for no grouping
                     List<Expression> sumExpressions = extractSumExpressions(select);
                     List<Column> outputColumns = new ArrayList<>(); // Empty for no grouping
+
+                    Set<Column> requiredColumns = getRequiredColumnsForSum(groupByColumns, sumExpressions, select);
+                    Operator childOp = rootOp;
+                    rootOp = new ProjectOperator(childOp, new ArrayList<>(requiredColumns));
+                    System.out.println("++ Project operator added for sum.");
+                    System.out.println("   Root operator type: " + rootOp.getClass().getSimpleName());
+
 
                     rootOp = new SumOperator(rootOp, groupByColumns, sumExpressions, outputColumns);
                     System.out.println("++ SUM aggregation operator added (no grouping).");
@@ -419,6 +433,39 @@ public class QueryPlanner {
         if (op instanceof JoinOperator) {
             ensureAllSchemasRegistered(((JoinOperator) op).getOuterChild());
         }
+    }
+
+    private static Set<Column> getRequiredColumnsForSum(
+            List<Column> groupByColumns,
+            List<Expression> sumExpressions,
+            Select select) {
+
+        Set<Column> requiredColumns = new HashSet<>(groupByColumns);
+
+        // Add columns used in SUM expressions
+        for (Expression expr : sumExpressions) {
+            if (expr instanceof Function) {
+                Function function = (Function) expr;
+                if ("SUM".equalsIgnoreCase(function.getName())) {
+                    Expression innerExpr = (Expression) function.getParameters().get(0);
+
+                    // Extract columns from the SUM expression
+                    ColumnExtractor extractor = new ColumnExtractor();
+                    innerExpr.accept(extractor);
+                    requiredColumns.addAll(extractor.getColumns());
+                }
+            }
+        }
+
+        // Add columns from the WHERE clause (for join/selection conditions)
+        Expression whereExpr = select.getPlainSelect().getWhere();
+        if (whereExpr != null) {
+            ColumnExtractor extractor = new ColumnExtractor();
+            whereExpr.accept(extractor);
+            requiredColumns.addAll(extractor.getColumns());
+        }
+
+        return requiredColumns;
     }
 
 }

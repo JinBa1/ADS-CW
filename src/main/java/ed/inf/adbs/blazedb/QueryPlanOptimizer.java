@@ -611,35 +611,78 @@ public class QueryPlanOptimizer {
     private static Operator pushProjectionsDown(Operator rootOp) {
         System.out.println("Starting projection pushdown optimization...");
 
-        // Only perform optimization if the root is a ProjectOperator
-        if (rootOp instanceof ProjectOperator) {
-            ProjectOperator projectOp = (ProjectOperator) rootOp;
-            List<Column> projectedColumns = projectOp.getColumns();
+        // Find ProjectOperator and collect required columns from operators above it
+        ProjectOperatorInfo projectInfo = findProjectOperator(rootOp, new HashSet<>());
 
-            System.out.println("Root is a ProjectOperator with columns: " + projectedColumns);
+        if (projectInfo != null) {
+            System.out.println("Found ProjectOperator with required columns: " + projectInfo.requiredColumns);
 
-            // Get the child operator
-            Operator child = projectOp.getChild();
-
-            // Collect all required columns through the operator tree
-            Set<Column> requiredColumns = collectRequiredColumns(child, new HashSet<>(projectedColumns));
-
-            System.out.println("Required columns for operations: " + requiredColumns);
-
-            // Push the projection as far down as possible
-            Operator optimizedChild = pushProjectionDown(child, requiredColumns);
+            // Push the projection down with the required columns
+            Operator optimizedChild = pushProjectionDown(
+                    projectInfo.projectOp.getChild(),
+                    projectInfo.requiredColumns
+            );
 
             // Update the project operator's child
-            projectOp.setChild(optimizedChild);
-
-
+            projectInfo.projectOp.setChild(optimizedChild);
 
             System.out.println("Projection pushdown optimization complete.");
-            return projectOp;
+        } else {
+            System.out.println("No ProjectOperator found, skipping projection pushdown.");
         }
 
-        System.out.println("Root is not a ProjectOperator, skipping projection pushdown.");
         return rootOp;
+    }
+
+    private static class ProjectOperatorInfo {
+        ProjectOperator projectOp;
+        Set<Column> requiredColumns;
+
+        ProjectOperatorInfo(ProjectOperator projectOp, Set<Column> requiredColumns) {
+            this.projectOp = projectOp;
+            this.requiredColumns = requiredColumns;
+        }
+    }
+
+    private static ProjectOperatorInfo findProjectOperator(
+            Operator op,
+            Set<Column> parentRequiredColumns) {
+
+        if (op == null) return null;
+
+        // If this is a ProjectOperator, we found what we're looking for
+        if (op instanceof ProjectOperator) {
+            ProjectOperator projectOp = (ProjectOperator) op;
+
+            // Combine project columns with parent required columns
+            Set<Column> combinedColumns = new HashSet<>(projectOp.getColumns());
+            combinedColumns.addAll(parentRequiredColumns);
+
+            return new ProjectOperatorInfo(projectOp, combinedColumns);
+        }
+
+        // Early termination: Stop if we encounter operators that would not have ProjectOperator below them
+        if (op instanceof JoinOperator || op instanceof ScanOperator || op instanceof SelectOperator || op instanceof SumOperator) {
+            return null;
+        }
+
+        // Current operator's required columns
+        Set<Column> currentRequiredColumns = new HashSet<>(parentRequiredColumns);
+
+        // Add columns required by this operator
+        if (op instanceof SortOperator) {
+            SortOperator sortOp = (SortOperator) op;
+            currentRequiredColumns.addAll(sortOp.getSortColumns());
+        }
+        // For DuplicateEliminationOperator, no extra columns are needed
+
+        // Recursively search in child (which should only be necessary for Sort/DuplicateElimination)
+        if (op.hasChild()) {
+            return findProjectOperator(op.getChild(), currentRequiredColumns);
+        }
+
+        // No ProjectOperator found in this subtree
+        return null;
     }
 
     /**
