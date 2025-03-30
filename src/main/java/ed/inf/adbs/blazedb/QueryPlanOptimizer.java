@@ -13,15 +13,24 @@ import java.util.*;
 /**
  * Optimizes query plans by removing unnecessary operators and reorganizing
  * the plan to reduce the number of tuples processed while maintaining correctness.
+ *
  * This optimizer respects the key requirements:
  * 1. Proper operator implementation with getNextTuple() and reset()
  * 2. Tree-based evaluation model
  * 3. Left-deep join tree that follows the FROM clause ordering
+ *
+ * The optimizer applies several transformation techniques:
+ * - Removing trivial operators (e.g., SELECT with always-true conditions)
+ * - Pushing selections down the operator tree to filter tuples early
+ * - Pushing projections down to reduce data movement
+ * - Combining consecutive operators of the same type
  */
 public class QueryPlanOptimizer {
 
     /**
      * Optimizes a query plan by applying various transformation rules.
+     * Optimization rules are applied in a specific order to ensure correctness.
+     *
      * @param rootOp The root operator of the query plan to optimize
      * @return The optimized query plan
      */
@@ -29,30 +38,33 @@ public class QueryPlanOptimizer {
         System.out.println("Starting query plan optimization...");
 
         // Apply optimization rules in a specific order
-        // First, remove trivial operators
-
-
+        // First, push filtering operations down
         rootOp = pushSelectionsDown(rootOp);
-
         rootOp = pushProjectionsDown(rootOp);
 
+        // Update schema information after push-down operations
         rootOp.updateSchema();
+
         // Then, combine operators where possible
         rootOp = combineConsecutiveSelects(rootOp);
 
+        // Finally, remove unnecessary operators
         rootOp = removeUnnecessaryProjects(rootOp);
         rootOp = removeUnnecessarySelects(rootOp);
 
-        // Lastly, reorder operators to minimize intermediate results
-        // Note: we must maintain the left-deep join tree with the original table order
-
         System.out.println("Query plan optimization complete.");
 
+        // Verify schema consistency after all optimizations
         verifySchemaConsistency(rootOp);
         return rootOp;
     }
 
-
+    /**
+     * Verifies schema consistency across the query plan.
+     * Logs operator schema information for debugging purposes.
+     *
+     * @param op The operator to verify
+     */
     private static void verifySchemaConsistency(Operator op) {
         if (op == null) return;
 
@@ -77,9 +89,10 @@ public class QueryPlanOptimizer {
         }
     }
 
-
     /**
      * Removes ProjectOperators that don't actually project anything (keep all columns).
+     * A projection is considered trivial if it keeps all columns from its child.
+     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -124,6 +137,10 @@ public class QueryPlanOptimizer {
     /**
      * Checks if a ProjectOperator doesn't actually reduce the columns.
      * A projection is trivial if it keeps all columns from its child.
+     *
+     * @param projectOp The ProjectOperator to check
+     * @param childOp The child operator
+     * @return true if the projection is trivial, false otherwise
      */
     private static boolean isProjectTrivial(ProjectOperator projectOp, Operator childOp) {
         List<Column> projectedColumns = projectOp.getColumns();
@@ -138,16 +155,9 @@ public class QueryPlanOptimizer {
             return false;
         }
 
+        // Get child schema to compare column sets
         String childSchemaId = childOp.propagateSchemaId();
-        Map<String, Integer> childSchema;
-
-        if (childSchemaId.startsWith("temp_")) {
-            // For intermediate schemas
-            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
-        } else {
-            // For base table schemas
-            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
-        }
+        Map<String, Integer> childSchema = getOperatorSchema(childSchemaId);
 
         if (childSchema == null) {
             return false;
@@ -184,7 +194,24 @@ public class QueryPlanOptimizer {
     }
 
     /**
+     * Gets the schema for an operator by ID, handling both base and intermediate schemas.
+     *
+     * @param schemaId The schema ID to retrieve
+     * @return The schema as a map from column names to indices
+     */
+    private static Map<String, Integer> getOperatorSchema(String schemaId) {
+        if (schemaId.startsWith("temp_")) {
+            // For intermediate schemas
+            return DBCatalog.getInstance().getIntermediateSchema(schemaId);
+        } else {
+            // For base table schemas
+            return DBCatalog.getInstance().getDBSchemata(schemaId);
+        }
+    }
+
+    /**
      * Removes SelectOperators with conditions that are always true.
+     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -226,10 +253,34 @@ public class QueryPlanOptimizer {
         return op;
     }
 
+    /**
+     * Checks if a SELECT condition is trivial (always true).
+     * Currently identifies simple cases like "1 = 1".
+     *
+     * @param selectOp The SelectOperator to check
+     * @return true if the selection is trivial, false otherwise
+     */
+    private static boolean isSelectionTrivial(SelectOperator selectOp) {
+        Expression condition = selectOp.getCondition();
 
+        // Check for common trivial conditions like 1 = 1
+        if (condition instanceof EqualsTo) {
+            EqualsTo equals = (EqualsTo) condition;
+            if (equals.getLeftExpression() instanceof LongValue &&
+                    equals.getRightExpression() instanceof LongValue) {
+                LongValue left = (LongValue) equals.getLeftExpression();
+                LongValue right = (LongValue) equals.getRightExpression();
+                return left.getValue() == right.getValue();
+            }
+        }
+
+        return false;
+    }
 
     /**
      * Combines consecutive SelectOperators into a single SelectOperator.
+     * This reduces the number of operators in the plan and simplifies execution.
+     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -278,6 +329,7 @@ public class QueryPlanOptimizer {
      * Pushes selection operations down the operator tree to reduce
      * intermediate result sizes as early as possible.
      * This respects the left-deep join tree structure.
+     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -293,65 +345,12 @@ public class QueryPlanOptimizer {
             List<Expression> splitConditions = splitAndConditions(condition);
 
             if (splitConditions.size() > 1) {
-                System.out.println("Splitting AND condition into " + splitConditions.size() + " parts: " + splitConditions);
-
-                // Get the underlying child
-                Operator baseChild = selectOp.getChild();
-
-                // Process each condition individually
-                for (Expression splitCondition : splitConditions) {
-                    System.out.println("Processing split condition: " + splitCondition);
-
-                    // Create a temporary SelectOperator for this condition
-                    SelectOperator tempSelect = new SelectOperator(baseChild, splitCondition);
-
-                    // Try to push it down
-                    Operator optimizedOp = pushSelectionsDown(tempSelect);
-
-                    // If optimization changed the operator type, it was pushed down
-                    if (!(optimizedOp instanceof SelectOperator)) {
-                        baseChild = optimizedOp;
-                    } else {
-                        // Couldn't push this selection down, keep it above the result so far
-                        baseChild = optimizedOp;
-                    }
-                }
-
-                return baseChild;
+                return handleSplitSelectionConditions(selectOp, splitConditions);
             }
 
             // Try to push the single selection down
             if (selectOp.getChild() instanceof JoinOperator) {
-                JoinOperator joinOp = (JoinOperator) selectOp.getChild();
-
-                // Analyze the condition
-                Set<String> tablesInCondition = extractTableNames(condition);
-                String outerSchemaId = joinOp.getOuterChild().propagateSchemaId();
-                String innerSchemaId = joinOp.getChild().propagateSchemaId();
-                Set<String> outerTables = getTablesInSchema(outerSchemaId);
-                Set<String> innerTables = getTablesInSchema(innerSchemaId);
-
-                System.out.println("OPTIMIZER: Analyzing condition " + condition);
-                System.out.println("OPTIMIZER: Tables in condition: " + tablesInCondition);
-                System.out.println("OPTIMIZER: Outer schema tables: " + outerTables);
-                System.out.println("OPTIMIZER: Inner schema tables: " + innerTables);
-
-                // Check if condition applies to only outer child
-                if (outerTables.containsAll(tablesInCondition)) {
-                    System.out.println("OPTIMIZER: Pushing selection to outer child: " + condition);
-                    joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), condition));
-                    return joinOp;
-                }
-
-                // Check if condition applies to only inner child
-                if (innerTables.containsAll(tablesInCondition)) {
-                    System.out.println("OPTIMIZER: Pushing selection to inner child: " + condition);
-                    joinOp.setChild(new SelectOperator(joinOp.getChild(), condition));
-                    return joinOp;
-                }
-
-                // If it's a join condition or can't be pushed down, keep it
-                return selectOp;
+                return pushSelectionIntoJoin(selectOp);
             }
         }
 
@@ -369,128 +368,90 @@ public class QueryPlanOptimizer {
         return op;
     }
 
-    // Push selection down into a join
+    /**
+     * Handles split selection conditions by pushing each one down separately.
+     *
+     * @param selectOp The SelectOperator with the original condition
+     * @param splitConditions The split conditions to process
+     * @return The optimized operator structure
+     */
+    private static Operator handleSplitSelectionConditions(
+            SelectOperator selectOp, List<Expression> splitConditions) {
+
+        System.out.println("Splitting AND condition into " + splitConditions.size() + " parts: " + splitConditions);
+
+        // Get the underlying child
+        Operator baseChild = selectOp.getChild();
+
+        // Process each condition individually
+        for (Expression splitCondition : splitConditions) {
+            System.out.println("Processing split condition: " + splitCondition);
+
+            // Create a temporary SelectOperator for this condition
+            SelectOperator tempSelect = new SelectOperator(baseChild, splitCondition);
+
+            // Try to push it down
+            Operator optimizedOp = pushSelectionsDown(tempSelect);
+
+            // If optimization changed the operator type, it was pushed down
+            if (!(optimizedOp instanceof SelectOperator)) {
+                baseChild = optimizedOp;
+            } else {
+                // Couldn't push this selection down, keep it above the result so far
+                baseChild = optimizedOp;
+            }
+        }
+
+        return baseChild;
+    }
+
+    /**
+     * Pushes a selection into a join, potentially moving conditions to the join's children.
+     *
+     * @param selectOp The SelectOperator to push down
+     * @return The optimized operator
+     */
     private static Operator pushSelectionIntoJoin(SelectOperator selectOp) {
         JoinOperator joinOp = (JoinOperator) selectOp.getChild();
         Expression condition = selectOp.getCondition();
 
-        // Split the selection condition
-        Map<Operator, Expression> splitConditions = splitJoinCondition(
-                condition,
-                joinOp.getOuterChild(),
-                joinOp.getChild()
-        );
+        // Analyze the condition
+        Set<String> tablesInCondition = extractTableNames(condition);
+        String outerSchemaId = joinOp.getOuterChild().propagateSchemaId();
+        String innerSchemaId = joinOp.getChild().propagateSchemaId();
+        Set<String> outerTables = getTablesInSchema(outerSchemaId);
+        Set<String> innerTables = getTablesInSchema(innerSchemaId);
 
-        // Apply conditions to each child where applicable
-        Expression outerCondition = splitConditions.get(joinOp.getOuterChild());
-        if (outerCondition != null) {
-            joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), outerCondition));
-            System.out.println("Pushed selection to outer join child: " + outerCondition);
+        System.out.println("OPTIMIZER: Analyzing condition " + condition);
+        System.out.println("OPTIMIZER: Tables in condition: " + tablesInCondition);
+        System.out.println("OPTIMIZER: Outer schema tables: " + outerTables);
+        System.out.println("OPTIMIZER: Inner schema tables: " + innerTables);
+
+        // Check if condition applies to only outer child
+        if (outerTables.containsAll(tablesInCondition)) {
+            System.out.println("OPTIMIZER: Pushing selection to outer child: " + condition);
+            joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), condition));
+            return joinOp;
         }
 
-        Expression innerCondition = splitConditions.get(joinOp.getChild());
-        if (innerCondition != null) {
-            joinOp.setChild(new SelectOperator(joinOp.getChild(), innerCondition));
-            System.out.println("Pushed selection to inner join child: " + innerCondition);
+        // Check if condition applies to only inner child
+        if (innerTables.containsAll(tablesInCondition)) {
+            System.out.println("OPTIMIZER: Pushing selection to inner child: " + condition);
+            joinOp.setChild(new SelectOperator(joinOp.getChild(), condition));
+            return joinOp;
         }
 
-        // Remaining conditions stay with the join
-        Expression remainingCondition = splitConditions.get(null);
-        if (remainingCondition != null) {
-            // Either modify join condition or keep a selection above the join
-            if (joinOp.getJoinCondition() != null) {
-                // Combine with existing join condition
-                Expression combinedCondition = new AndExpression(joinOp.getJoinCondition(), remainingCondition);
-                return new SelectOperator(joinOp, remainingCondition);
-            } else {
-                return new SelectOperator(joinOp, remainingCondition);
-            }
-        }
-
-        return joinOp;
-    }
-
-    // Push selection through a projection if possible
-    private static Operator pushSelectionThroughProjection(SelectOperator selectOp) {
-        ProjectOperator projectOp = (ProjectOperator) selectOp.getChild();
-        Expression condition = selectOp.getCondition();
-
-        // Check if all columns used in the selection are preserved by the projection
-        if (canPushSelectionThroughProjection(condition, projectOp)) {
-            // Create a new selection below the projection
-            Operator newChild = new SelectOperator(projectOp.getChild(), condition);
-            projectOp.setChild(newChild);
-            System.out.println("Pushed selection through projection");
-            return projectOp;
-        }
-
+        // If it's a join condition or can't be pushed down, keep it
         return selectOp;
     }
 
-    // Split a condition for join selection pushdown using schema information
-    private static Map<Operator, Expression> splitJoinCondition(
-            Expression condition,
-            Operator outerChild,
-            Operator innerChild) {
-
-        Map<Operator, Expression> result = new HashMap<>();
-
-        // Get schema IDs for both children
-        String outerSchemaId = outerChild.propagateSchemaId();
-        String innerSchemaId = innerChild.propagateSchemaId();
-
-        // Split using table references in condition
-        ConditionSplitter splitter = new ConditionSplitter(outerSchemaId, innerSchemaId);
-        condition.accept(splitter);
-
-        // Get the split conditions
-        result.put(outerChild, splitter.getOuterCondition());
-        result.put(innerChild, splitter.getInnerCondition());
-        result.put(null, splitter.getJoinCondition());
-
-        return result;
-    }
-
-    // Helper to check if a selection can be pushed through projection
-    private static boolean canPushSelectionThroughProjection(
-            Expression condition,
-            ProjectOperator projectOp) {
-
-        // Extract columns referenced in the condition
-        List<Column> conditionColumns = extractColumns(condition);
-
-        // Get projected columns
-        List<Column> projectedColumns = projectOp.getColumns();
-
-        // Check if all condition columns are in the projection
-        for (Column condCol : conditionColumns) {
-            boolean found = false;
-            for (Column projCol : projectedColumns) {
-                if (columnsMatch(condCol, projCol)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) return false;
-        }
-
-        return true;
-    }
-
-    // Extract columns from an expression
-    private static List<Column> extractColumns(Expression expression) {
-        ColumnExtractor extractor = new ColumnExtractor();
-        expression.accept(extractor);
-        return extractor.getColumns();
-    }
-
-    // Check if two columns match (considering table and column names)
-    private static boolean columnsMatch(Column col1, Column col2) {
-        return col1.getColumnName().equalsIgnoreCase(col2.getColumnName()) &&
-                col1.getTable().getName().equalsIgnoreCase(col2.getTable().getName());
-    }
-
-
+    /**
+     * Splits a condition with AND operators into individual conditions.
+     * For example, "A AND B AND C" becomes a list of [A, B, C].
+     *
+     * @param expr The expression to split
+     * @return A list of individual expressions
+     */
     private static List<Expression> splitAndConditions(Expression expr) {
         List<Expression> result = new ArrayList<>();
 
@@ -505,6 +466,12 @@ public class QueryPlanOptimizer {
         return result;
     }
 
+    /**
+     * Extracts table names referenced in an expression.
+     *
+     * @param expr The expression to analyze
+     * @return A set of table names referenced in the expression
+     */
     private static Set<String> extractTableNames(Expression expr) {
         final Set<String> tables = new HashSet<>();
 
@@ -520,6 +487,12 @@ public class QueryPlanOptimizer {
         return tables;
     }
 
+    /**
+     * Gets the set of table names contained in a schema.
+     *
+     * @param schemaId The schema ID to check
+     * @return A set of table names in the schema
+     */
     private static Set<String> getTablesInSchema(String schemaId) {
         Set<String> tables = new HashSet<>();
 
@@ -542,26 +515,12 @@ public class QueryPlanOptimizer {
         return tables;
     }
 
-    private static boolean isSelectionTrivial(SelectOperator selectOp) {
-        Expression condition = selectOp.getCondition();
-
-        // Check for common trivial conditions like 1 = 1
-        if (condition instanceof EqualsTo) {
-            EqualsTo equals = (EqualsTo) condition;
-            if (equals.getLeftExpression() instanceof LongValue &&
-                    equals.getRightExpression() instanceof LongValue) {
-                LongValue left = (LongValue) equals.getLeftExpression();
-                LongValue right = (LongValue) equals.getRightExpression();
-                return left.getValue() == right.getValue();
-            }
-        }
-
-        return false;
-    }
-
     /**
-     * New method: Analyzes a query plan and pushes projections down where possible.
+     * Analyzes a query plan and pushes projections down where possible.
      * This reduces the amount of data processed at each operator.
+     *
+     * @param rootOp The root operator of the plan
+     * @return The optimized plan with pushed-down projections
      */
     private static Operator pushProjectionsDown(Operator rootOp) {
         System.out.println("Starting projection pushdown optimization...");
@@ -589,6 +548,9 @@ public class QueryPlanOptimizer {
         return rootOp;
     }
 
+    /**
+     * Helper class for tracking projection operators and their required columns.
+     */
     private static class ProjectOperatorInfo {
         ProjectOperator projectOp;
         Set<Column> requiredColumns;
@@ -599,6 +561,14 @@ public class QueryPlanOptimizer {
         }
     }
 
+    /**
+     * Searches for a ProjectOperator in the operator tree.
+     * Also collects columns required by operators above the ProjectOperator.
+     *
+     * @param op The operator to search
+     * @param parentRequiredColumns Columns required by parent operators
+     * @return Information about the found ProjectOperator, or null if none found
+     */
     private static ProjectOperatorInfo findProjectOperator(
             Operator op,
             Set<Column> parentRequiredColumns) {
@@ -641,7 +611,12 @@ public class QueryPlanOptimizer {
     }
 
     /**
-     * New method: Recursively pushes projections down the operator tree.
+     * Recursively pushes projections down the operator tree.
+     * Ensures that all columns needed by operators are preserved.
+     *
+     * @param op The operator to process
+     * @param requiredColumns The set of columns required at this level
+     * @return The optimized operator tree
      */
     private static Operator pushProjectionDown(Operator op, Set<Column> requiredColumns) {
         if (op == null) {
@@ -650,117 +625,18 @@ public class QueryPlanOptimizer {
 
         // Handle different operator types
         if (op instanceof SelectOperator) {
-            // For SelectOperator, add any columns used in the selection condition
-            SelectOperator selectOp = (SelectOperator) op;
-            Expression condition = selectOp.getCondition();
-
-            // Add columns used in the condition to required columns
-            ColumnExtractor extractor = new ColumnExtractor();
-            condition.accept(extractor);
-            requiredColumns.addAll(extractor.getColumns());
-
-            // Recursively push projection down
-            Operator optimizedChild = pushProjectionDown(selectOp.getChild(), requiredColumns);
-            selectOp.setChild(optimizedChild);
-
-            return selectOp;
+            return pushProjectionThroughSelect(op, requiredColumns);
         }
         else if (op instanceof JoinOperator) {
-            // For JoinOperator, split required columns between left and right children
-            JoinOperator joinOp = (JoinOperator) op;
-
-            // First add columns used in join condition
-            Expression joinCondition = joinOp.getJoinCondition();
-            if (joinCondition != null) {
-                ColumnExtractor extractor = new ColumnExtractor();
-                joinCondition.accept(extractor);
-                requiredColumns.addAll(extractor.getColumns());
-            }
-
-            // Split columns by table
-            Set<Column> leftColumns = new HashSet<>();
-            Set<Column> rightColumns = new HashSet<>();
-
-            String outerSchemaId = joinOp.getOuterChild().propagateSchemaId();
-            String innerSchemaId = joinOp.getChild().propagateSchemaId();
-
-            for (Column col : requiredColumns) {
-                String tableName = col.getTable().getName();
-                Set<String> outerTables = getTablesInSchema(outerSchemaId);
-                Set<String> innerTables = getTablesInSchema(innerSchemaId);
-
-                if (outerTables.contains(tableName)) {
-                    leftColumns.add(col);
-                } else if (innerTables.contains(tableName)) {
-                    rightColumns.add(col);
-                } else {
-                    // If we can't determine, add to both to be safe
-                    leftColumns.add(col);
-                    rightColumns.add(col);
-                }
-            }
-
-            // Recursively push down to both children
-            Operator optimizedOuterChild = pushProjectionDown(joinOp.getOuterChild(), leftColumns);
-            Operator optimizedInnerChild = pushProjectionDown(joinOp.getChild(), rightColumns);
-
-            joinOp.setOuterChild(optimizedOuterChild);
-            joinOp.setChild(optimizedInnerChild);
-
-            return joinOp;
+            return pushProjectionThroughJoin(op, requiredColumns);
         }
         else if (op instanceof ScanOperator) {
-            // For ScanOperator, insert a projection if needed
-            ScanOperator scanOp = (ScanOperator) op;
-            String tableName = scanOp.getTableName();
-
-            // Filter columns for this table only
-            List<Column> tableColumns = new ArrayList<>();
-            for (Column col : requiredColumns) {
-                if (col.getTable().getName().equals(tableName)) {
-                    tableColumns.add(col);
-                }
-            }
-
-            // If we're not selecting all columns, add a projection
-            Map<String, Integer> tableSchema = DBCatalog.getInstance().getDBSchemata(tableName);
-            if (tableColumns.size() < tableSchema.size()) {
-                System.out.println("Adding projection at scan level for table " + tableName +
-                        " with columns: " + tableColumns);
-                return new ProjectOperator(scanOp, tableColumns);
-            }
-
-            return scanOp;
+            return pushProjectionThroughScan(op, requiredColumns);
         }
-        else if (op instanceof DuplicateEliminationOperator) {
-            // For duplicate elimination, all projected columns are required
-            DuplicateEliminationOperator distinctOp = (DuplicateEliminationOperator) op;
-            Operator optimizedChild = pushProjectionDown(distinctOp.getChild(), requiredColumns);
-            distinctOp.setChild(optimizedChild);
-
-            return distinctOp;
-        }
-        else if (op instanceof SortOperator) {
-            // For sort, add sort columns to required columns
-            SortOperator sortOp = (SortOperator) op;
-            // We need to access sort columns here
-            // For simplicity, just push down all required columns
-
-            Operator optimizedChild = pushProjectionDown(sortOp.getChild(), requiredColumns);
-            sortOp.setChild(optimizedChild);
-
-            return sortOp;
-        }
-        else if (op instanceof SumOperator) {
-            // For SumOperator, add group by and aggregate columns
-            SumOperator sumOp = (SumOperator) op;
-            // Since we don't have direct access to the sum columns,
-            // we'll just push down all required columns
-
-            Operator optimizedChild = pushProjectionDown(sumOp.getChild(), requiredColumns);
-            sumOp.setChild(optimizedChild);
-
-            return sumOp;
+        else if (op instanceof DuplicateEliminationOperator ||
+                op instanceof SortOperator ||
+                op instanceof SumOperator) {
+            return pushProjectionThroughPassthroughOp(op, requiredColumns);
         }
 
         // Default case: if operator has a child, recursively optimize it
@@ -773,41 +649,155 @@ public class QueryPlanOptimizer {
     }
 
     /**
-     * New method: Collects all columns required by an operator subtree.
+     * Pushes projection through a SelectOperator.
+     * Ensures all columns needed for the selection condition are preserved.
+     *
+     * @param op The SelectOperator
+     * @param requiredColumns Columns required by parent operators
+     * @return The optimized operator tree
      */
-    private static Set<Column> collectRequiredColumns(Operator op, Set<Column> parentRequiredColumns) {
-        Set<Column> requiredColumns = new HashSet<>(parentRequiredColumns);
+    private static Operator pushProjectionThroughSelect(Operator op, Set<Column> requiredColumns) {
+        SelectOperator selectOp = (SelectOperator) op;
+        Expression condition = selectOp.getCondition();
 
-        if (op instanceof SelectOperator) {
-            // Add columns used in selection condition
-            SelectOperator selectOp = (SelectOperator) op;
-            Expression condition = selectOp.getCondition();
+        // Add columns used in the condition to required columns
+        Set<Column> enhancedRequiredColumns = new HashSet<>(requiredColumns);
+        addConditionColumns(condition, enhancedRequiredColumns);
 
-            ColumnExtractor extractor = new ColumnExtractor();
-            condition.accept(extractor);
-            requiredColumns.addAll(extractor.getColumns());
-        }
-        else if (op instanceof JoinOperator) {
-            // Add columns used in join condition
-            JoinOperator joinOp = (JoinOperator) op;
-            Expression joinCondition = joinOp.getJoinCondition();
+        // Recursively push projection down
+        Operator optimizedChild = pushProjectionDown(selectOp.getChild(), enhancedRequiredColumns);
+        selectOp.setChild(optimizedChild);
 
-            if (joinCondition != null) {
-                ColumnExtractor extractor = new ColumnExtractor();
-                joinCondition.accept(extractor);
-                requiredColumns.addAll(extractor.getColumns());
-            }
-        }
-        else if (op instanceof SortOperator) {
-            // Need all sort columns
-            // For now, we'll just keep all columns from parent
-        }
-        else if (op instanceof SumOperator) {
-            // Need all group by and aggregation columns
-            // For now, we'll just keep all columns from parent
-        }
-
-        return requiredColumns;
+        return selectOp;
     }
 
+    /**
+     * Adds columns referenced in a condition to a set of required columns.
+     *
+     * @param condition The condition to analyze
+     * @param requiredColumns The set to add columns to
+     */
+    private static void addConditionColumns(Expression condition, Set<Column> requiredColumns) {
+        ColumnExtractor extractor = new ColumnExtractor();
+        condition.accept(extractor);
+        requiredColumns.addAll(extractor.getColumns());
+    }
+
+    /**
+     * Pushes projection through a JoinOperator.
+     * Splits required columns between the join's children and preserves join condition columns.
+     *
+     * @param op The JoinOperator
+     * @param requiredColumns Columns required by parent operators
+     * @return The optimized operator tree
+     */
+    private static Operator pushProjectionThroughJoin(Operator op, Set<Column> requiredColumns) {
+        JoinOperator joinOp = (JoinOperator) op;
+
+        // First add columns used in join condition
+        Set<Column> enhancedRequiredColumns = new HashSet<>(requiredColumns);
+        Expression joinCondition = joinOp.getJoinCondition();
+        if (joinCondition != null) {
+            addConditionColumns(joinCondition, enhancedRequiredColumns);
+        }
+
+        // Split columns by table
+        Set<Column> leftColumns = new HashSet<>();
+        Set<Column> rightColumns = new HashSet<>();
+        splitColumnsByTable(
+                enhancedRequiredColumns,
+                joinOp.getOuterChild().propagateSchemaId(),
+                joinOp.getChild().propagateSchemaId(),
+                leftColumns,
+                rightColumns
+        );
+
+        // Recursively push down to both children
+        Operator optimizedOuterChild = pushProjectionDown(joinOp.getOuterChild(), leftColumns);
+        Operator optimizedInnerChild = pushProjectionDown(joinOp.getChild(), rightColumns);
+
+        joinOp.setOuterChild(optimizedOuterChild);
+        joinOp.setChild(optimizedInnerChild);
+
+        return joinOp;
+    }
+
+    /**
+     * Splits a set of columns between left and right sides of a join.
+     *
+     * @param allColumns The set of all required columns
+     * @param outerSchemaId Schema ID for the left side
+     * @param innerSchemaId Schema ID for the right side
+     * @param leftColumns Output set for left side columns
+     * @param rightColumns Output set for right side columns
+     */
+    private static void splitColumnsByTable(
+            Set<Column> allColumns,
+            String outerSchemaId,
+            String innerSchemaId,
+            Set<Column> leftColumns,
+            Set<Column> rightColumns) {
+
+        Set<String> outerTables = getTablesInSchema(outerSchemaId);
+        Set<String> innerTables = getTablesInSchema(innerSchemaId);
+
+        for (Column col : allColumns) {
+            String tableName = col.getTable().getName();
+
+            if (outerTables.contains(tableName)) {
+                leftColumns.add(col);
+            } else if (innerTables.contains(tableName)) {
+                rightColumns.add(col);
+            } else {
+                // If we can't determine, add to both to be safe
+                leftColumns.add(col);
+                rightColumns.add(col);
+            }
+        }
+    }
+
+    /**
+     * Pushes projection through a ScanOperator.
+     * Creates a ProjectOperator if not all columns are required.
+     *
+     * @param op The ScanOperator
+     * @param requiredColumns Columns required by parent operators
+     * @return The optimized operator tree
+     */
+    private static Operator pushProjectionThroughScan(Operator op, Set<Column> requiredColumns) {
+        ScanOperator scanOp = (ScanOperator) op;
+        String tableName = scanOp.getTableName();
+
+        // Filter columns for this table only
+        List<Column> tableColumns = new ArrayList<>();
+        for (Column col : requiredColumns) {
+            if (col.getTable().getName().equals(tableName)) {
+                tableColumns.add(col);
+            }
+        }
+
+        // If we're not selecting all columns, add a projection
+        Map<String, Integer> tableSchema = DBCatalog.getInstance().getDBSchemata(tableName);
+        if (tableColumns.size() < tableSchema.size()) {
+            System.out.println("Adding projection at scan level for table " + tableName +
+                    " with columns: " + tableColumns);
+            return new ProjectOperator(scanOp, tableColumns);
+        }
+
+        return scanOp;
+    }
+
+    /**
+     * Pushes projection through passthrough operators like DuplicateElimination, Sort, and Sum.
+     * These operators typically need all columns from their input for proper operation.
+     *
+     * @param op The operator to process
+     * @param requiredColumns Columns required by parent operators
+     * @return The optimized operator tree
+     */
+    private static Operator pushProjectionThroughPassthroughOp(Operator op, Set<Column> requiredColumns) {
+        Operator optimizedChild = pushProjectionDown(op.getChild(), requiredColumns);
+        op.setChild(optimizedChild);
+        return op;
+    }
 }

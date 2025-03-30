@@ -564,6 +564,10 @@ public class QueryPlanner {
         }
         sb.append("- ").append(op.getClass().getSimpleName());
 
+        if(op instanceof ProjectOperator) {
+            sb.append(" column: ").append(((ProjectOperator) op).getColumns().toString());
+        }
+
         System.out.println(sb.toString());
 
         // Print child operators
