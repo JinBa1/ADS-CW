@@ -56,8 +56,8 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
      * @throws RuntimeException If the expression evaluation fails
      */
     public boolean evaluate(Expression expression, Tuple tuple) {
-        System.out.println("Evaluating expression with schema ID: " + this.schemaId);
-        System.out.println("Actual tuple: " + tuple);
+//        System.out.println("Evaluating expression with schema ID: " + this.schemaId);
+//        System.out.println("Actual tuple: " + tuple);
 
         this.currentTuple = tuple;
         this.resultStack.clear();
