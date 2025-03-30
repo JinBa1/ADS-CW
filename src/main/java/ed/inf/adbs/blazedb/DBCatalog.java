@@ -116,10 +116,6 @@ public class DBCatalog {
         return dBSchemata.get(tableName);
     }
 
-    public Integer getDBColumnName(String tableName, String columnName) {
-        // need to capture null schema from get table
-        return dBSchemata.get(tableName).get(columnName.toLowerCase());
-    }
 
     public boolean tableExists(String tableName) {
         return (dBLocations.containsKey(tableName) && dBSchemata.containsKey(tableName));
@@ -139,95 +135,12 @@ public class DBCatalog {
         return schemaId;
     }
 
-    public Integer getIntermediateColumnName(String schemaId, String tableName, String columnName) {
-        if (!intermediateSchemata.containsKey(schemaId)) {
-            return null;
-        }
-
-        Map<String, Integer> schema = intermediateSchemata.get(schemaId);
-        String key = tableName + "." + columnName.toLowerCase();
-        return schema.get(key);
-    }
 
     public Map<String, Integer> getIntermediateSchema(String schemaId) {
         if (!intermediateSchemata.containsKey(schemaId)) {
             return null;
         }
         return intermediateSchemata.get(schemaId);
-    }
-
-    public String registerJoinSchema(String leftSchemaId, String rightSchemaId, String rightTableName) {
-        // Get the source schemas
-        Map<String, Integer> leftSchemaMap = leftSchemaId.startsWith("temp_")
-                ? intermediateSchemata.get(leftSchemaId)
-                : dBSchemata.get(leftSchemaId);
-
-        Map<String, Integer> rightSchemaMap = rightSchemaId.startsWith("temp_")
-                ? intermediateSchemata.get(rightSchemaId)
-                : dBSchemata.get(rightSchemaId);
-
-        if (leftSchemaMap == null || rightSchemaMap == null) {
-            return null;
-        }
-
-        // Determine the size of the left tuple for index adjustment
-        int leftTupleSize = 0;
-        for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
-            leftTupleSize = Math.max(leftTupleSize, entry.getValue() + 1);
-        }
-
-        // Create a new joined schema
-        Map<String, Integer> joinedSchema = new HashMap<>();
-
-        // Add left schema entries with proper formatting
-        String leftTableName = leftSchemaId;
-        if (leftSchemaId.startsWith("temp_")) {
-            // For intermediate schemas, keep original keys
-            for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
-                joinedSchema.put(entry.getKey(), entry.getValue());
-            }
-        } else {
-            // For base tables, format keys as "table.column"
-            for (Map.Entry<String, Integer> entry : leftSchemaMap.entrySet()) {
-                String columnName = entry.getKey();
-                String key = leftSchemaId + "." + columnName.toLowerCase();
-                joinedSchema.put(key, entry.getValue());
-            }
-        }
-
-        // Add right schema entries with proper formatting
-        if (rightSchemaId.startsWith("temp_")) {
-            // For intermediate schemas, keep original keys but adjust indices
-            for (Map.Entry<String, Integer> entry : rightSchemaMap.entrySet()) {
-                joinedSchema.put(entry.getKey(), entry.getValue() + leftTupleSize);
-            }
-        } else {
-            // For base tables, format keys as "table.column" and adjust indices
-            for (Map.Entry<String, Integer> entry : rightSchemaMap.entrySet()) {
-                String columnName = entry.getKey();
-                String key = rightSchemaId + "." + columnName.toLowerCase();
-                joinedSchema.put(key, entry.getValue() + leftTupleSize);
-            }
-        }
-
-        return registerIntermediateSchema(joinedSchema);
-    }
-
-
-    public static Integer resolveColumnIndex(String schemaId, String tableName, String columnName) {
-        DBCatalog catalog = DBCatalog.getInstance();
-
-        System.out.println("DEBUG RESOLVE: Looking for column " + tableName + "." + columnName + " in schema " + schemaId);
-
-        Map<String, Integer> schema = schemaId.startsWith("temp_") ?
-                catalog.intermediateSchemata.get(schemaId) : catalog.dBSchemata.get(schemaId);
-        System.out.println("DEBUG RESOLVE: Available keys in schema: " + schema.keySet());
-
-        if (schemaId.startsWith("temp_")) {
-            return catalog.getIntermediateColumnName(schemaId, tableName, columnName);
-        } else {
-            return catalog.getDBColumnName(tableName, columnName);
-        }
     }
 
     // Register a schema with transformation information
