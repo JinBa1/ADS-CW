@@ -22,7 +22,6 @@ public class DuplicateEliminationOperator extends Operator {
 
     /**
      * Constructs a DuplicateEliminationOperator with the given child operator.
-     *
      * @param child The child operator from which to read tuples
      */
     public DuplicateEliminationOperator(Operator child) {
@@ -40,7 +39,6 @@ public class DuplicateEliminationOperator extends Operator {
     /**
      * Returns the next unique tuple from the child operator's output.
      * On first call, reads all tuples from the child and eliminates duplicates.
-     *
      * @return The next unique tuple, or null if no more unique tuples exist
      */
     @Override
@@ -52,7 +50,7 @@ public class DuplicateEliminationOperator extends Operator {
 
         // Return the next unique tuple if available
         if (tupleIterator.hasNext()) {
-            tupleCounter ++;
+            //tupleCounter ++;
             return tupleIterator.next();
         }
 
@@ -94,19 +92,9 @@ public class DuplicateEliminationOperator extends Operator {
         processed = false;
     }
 
-    /**
-     * Propagates the table name from the child operator.
-     *
-     * @return The table name from the child operator
-     */
-    @Override
-    public String propagateTableName() {
-        return child.propagateTableName();
-    }
 
     /**
      * Propagates the schema ID from the child operator.
-     *
      * @return The schema ID from the child operator
      */
     @Override
@@ -115,6 +103,12 @@ public class DuplicateEliminationOperator extends Operator {
         return intermediateSchemaId;
     }
 
+    /**
+     * Registers the schema for this operator.
+     * Creates a schema identical to the child operator's schema, since sorting
+     * does not change the structure of tuples, only their order.
+     * Transformation details are recorded.
+     */
     @Override
     protected void registerSchema() {
         if (schemaRegistered) return;

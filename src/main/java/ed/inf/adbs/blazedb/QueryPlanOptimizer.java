@@ -489,80 +489,6 @@ public class QueryPlanOptimizer {
     }
 
 
-    /**
-     * Gets the set of table names referenced by an operator and its descendants.
-     */
-    private static Set<String> getReferencedTables(Operator op) {
-        Set<String> tables = new HashSet<>();
-
-        // Base table scan
-        if (op instanceof ScanOperator) {
-            tables.add(op.propagateTableName());
-            return tables;
-        }
-
-        // JoinOperator combines tables from both children
-        if (op instanceof JoinOperator) {
-            JoinOperator joinOp = (JoinOperator) op;
-            tables.addAll(getReferencedTables(joinOp.getOuterChild()));
-            tables.addAll(getReferencedTables(joinOp.getChild()));
-            return tables;
-        }
-
-        // Other operators pass through tables from their child
-        if (op.hasChild()) {
-            tables.addAll(getReferencedTables(op.getChild()));
-        }
-
-        return tables;
-    }
-
-    /**
-     * Gets the set of table names referenced in an expression.
-     */
-    private static Set<String> getTablesInExpression(Expression expr) {
-        final Set<String> tables = new HashSet<>();
-
-        // Use a visitor to collect table names from the expression
-        ExpressionVisitorAdapter visitor = new ExpressionVisitorAdapter() {
-            @Override
-            public void visit(Column column) {
-                if (column.getTable() != null && column.getTable().getName() != null) {
-                    tables.add(column.getTable().getName());
-                }
-            }
-        };
-
-        expr.accept(visitor);
-        return tables;
-    }
-
-    /**
-     * Checks if a selection can be pushed before a projection.
-     * This is possible if all columns referenced in the selection
-     * are preserved by the projection.
-     */
-    private static boolean canPushSelectionBeforeProjection(Expression selectCondition, ProjectOperator projectOp) {
-        // Get columns referenced in selection condition
-        final Set<Column> selectColumns = new HashSet<>();
-
-        ExpressionVisitorAdapter visitor = new ExpressionVisitorAdapter() {
-            @Override
-            public void visit(Column column) {
-                selectColumns.add(column);
-            }
-        };
-
-        selectCondition.accept(visitor);
-
-        // Get columns preserved by projection
-        List<Column> projectionColumns = projectOp.getColumns();
-        Set<Column> projectionColumnSet = new HashSet<>(projectionColumns);
-
-        // Check if all selection columns are in projection
-        return projectionColumnSet.containsAll(selectColumns);
-    }
-
     private static List<Expression> splitAndConditions(Expression expr) {
         List<Expression> result = new ArrayList<>();
 
@@ -784,7 +710,7 @@ public class QueryPlanOptimizer {
         else if (op instanceof ScanOperator) {
             // For ScanOperator, insert a projection if needed
             ScanOperator scanOp = (ScanOperator) op;
-            String tableName = scanOp.propagateTableName();
+            String tableName = scanOp.getTableName();
 
             // Filter columns for this table only
             List<Column> tableColumns = new ArrayList<>();

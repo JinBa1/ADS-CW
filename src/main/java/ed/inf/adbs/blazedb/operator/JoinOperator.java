@@ -10,16 +10,31 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * The JoinOperator implements the tuple nested loop join algorithm for relational query processing.
+ * This is the only binary operator implemented.
+ * This class joins tuples from two input operators (outer and inner) based on an optional join condition.
+ * If no join condition is provided, the operator performs a cross product of the two inputs.
+ * @see Operator
+ * @see ExpressionEvaluator
+ */
 public class JoinOperator extends Operator {
     private Operator outerChild;
     private Expression expression;
     private ExpressionEvaluator evaluator;
 
-    private Tuple currentOuterTuple;
+    private Tuple currentOuterTuple; // used to track progress
 
 
 
-
+    /**
+     * Constructs a JoinOperator with specified outer child, inner child, and join condition.
+     * The operator combines tuples from both children according to the join condition.
+     * If the join condition is null, a cross product is performed.
+     * @param outerChild The outer (left) child operator, scanned once.
+     * @param innerChild The inner (right) child operator, scanned multiple times.
+     * @param expression The join condition expression, or null for cross product.
+     */
     public JoinOperator(Operator outerChild, Operator innerChild, Expression expression) {
         this.child = innerChild;
         this.outerChild = outerChild;
@@ -36,6 +51,16 @@ public class JoinOperator extends Operator {
     }
 
 
+    /**
+     * Returns the next tuple in the join result.
+     * Implements the nested loop join algorithm:
+     * 1. For each tuple from the outer child
+     * 2. Scan all tuples from the inner child
+     * 3. For each pair of tuples, combine them and evaluate the join condition
+     * 4. Return matching tuples
+     * The operator maintains state between calls to track the current outer tuple position.
+     * @return A combined tuple that satisfies the join condition, or null if no more matching tuples
+     */
     @Override
     public Tuple getNextTuple() {
 
@@ -45,56 +70,68 @@ public class JoinOperator extends Operator {
             if (currentOuterTuple == null) {
                 return null;
             }
-            child.reset();
+            child.reset(); // reset inner child for next outer tuple
         }
 
 
         while (true) {
             Tuple innerTuple = child.getNextTuple();
-            System.out.println("DEBUG: Inner tuple: " + (innerTuple == null ? "null" : innerTuple) +
-                    ", columns: " + (innerTuple == null ? "n/a" : innerTuple.getTuple().size()));
+//            System.out.println("DEBUG: Inner tuple: " + (innerTuple == null ? "null" : innerTuple) +
+//                    ", columns: " + (innerTuple == null ? "n/a" : innerTuple.getTuple().size()));
 
 
             if (innerTuple == null) {
                 currentOuterTuple = outerChild.getNextTuple();
                 if (currentOuterTuple == null) {
-                    return null;
+                    return null;  // no more tuples from either children
                 }
                 child.reset();
-                continue;
+                continue; // reset inner child for next outer tuple
             }
             Tuple combined = combineTuples(currentOuterTuple, innerTuple);
 //            System.out.println("JoinOperator: evaluating: " + combined);
 
-            System.out.println("DEBUG: Combined tuple: " + combined +
-                    ", columns: " + combined.getTuple().size());
+//            System.out.println("DEBUG: Combined tuple: " + combined +
+//                    ", columns: " + combined.getTuple().size());
 
             if (expression == null  || evaluator.evaluate(expression, combined)) {
 //                System.out.println("JoinOperator: returning combined tuple: " + combined);
-                tupleCounter ++;
-                return combined;
+                //tupleCounter ++;
+                return combined;  // pass join condition if having one
             }
         }
 
     }
 
+    /**
+     * Resets the join operator to its initial state.
+     * Resets both child operators and clears any stored state.
+     */
     @Override
     public void reset() {
         outerChild.reset();
         child.reset();
     }
 
-    @Override
-    public String propagateTableName() {
-        return child.propagateTableName();
-    }
 
+    /**
+     * Propagates the identifier for the joined schema.
+     * This is primarily used for schema tracking.
+     * @return The unique identifier for joined schema.
+     */
     @Override
     public String propagateSchemaId() {
         ensureSchemaRegistered();
         return intermediateSchemaId;
     }
 
+    /**
+     * Combines tuples from the left and right child into a single tuple.
+     * The combined tuple contains all attributes from the left tuple followed by all attributes from the right tuple.
+     * @param leftTuple The tuple from the outer child
+     * @param rightTuple The tuple from the inner child
+     * @return A new tuple containing all attributes from both input tuples
+     */
     private Tuple combineTuples(Tuple leftTuple, Tuple rightTuple) {
         ArrayList<Integer> combinedAttributes = new ArrayList<>();
         combinedAttributes.addAll(leftTuple.getTuple());
@@ -102,20 +139,38 @@ public class JoinOperator extends Operator {
         return new Tuple(combinedAttributes);
     }
 
+    /**
+     * Returns the outer child operator of this join.
+     * @return The outer (left) child operator
+     */
     public Operator getOuterChild() {
         return outerChild;
     }
 
+    /**
+     * Sets the outer child operator of this join.
+     * Updates join condition evaluation if necessary.
+     * @param outerChild The new outer child operator
+     */
     public void setOuterChild(Operator outerChild) {
         this.outerChild = outerChild;
         updateJoinCondition();
     }
 
+    /**
+     * Sets the inner child operator of this join.
+     * Overrides the parent class method to update join condition evaluation.
+     * @param innerChild The new inner child operator
+     */
     public void setChild(Operator innerChild) {
         this.child = innerChild;
         updateJoinCondition();
     }
 
+    /**
+     * Updates the join condition evaluator when child operators change.
+     * This ensures correct schema resolution for the join condition.
+     */
     private void updateJoinCondition() {
         if (this.expression == null) return;
 
@@ -125,6 +180,11 @@ public class JoinOperator extends Operator {
         }
     }
 
+    /**
+     * Registers the schema for this join operator.
+     * Creates a combined schema from both child operators and registers it with DBCatalog.
+     * Records transformation details to track how the schema was derived.
+     */
     @Override
     protected void registerSchema() {
         if (schemaRegistered) return;
@@ -136,9 +196,9 @@ public class JoinOperator extends Operator {
         Map<String, Integer> leftSchemaMap = getSchemaMap(leftSchemaId);
         Map<String, Integer> rightSchemaMap = getSchemaMap(rightSchemaId);
 
-        System.out.println("DEBUG JOIN: Left schema ID = " + leftSchemaId + ", Right schema ID = " + rightSchemaId);
-        System.out.println("DEBUG JOIN: Left schema map: " + leftSchemaMap);
-        System.out.println("DEBUG JOIN: Right schema map: " + rightSchemaMap);
+//        System.out.println("DEBUG JOIN: Left schema ID = " + leftSchemaId + ", Right schema ID = " + rightSchemaId);
+//        System.out.println("DEBUG JOIN: Left schema map: " + leftSchemaMap);
+//        System.out.println("DEBUG JOIN: Right schema map: " + rightSchemaMap);
 
         if (leftSchemaMap == null || rightSchemaMap == null) {
             throw new RuntimeException("Could not retrieve schemas for join");
@@ -147,8 +207,6 @@ public class JoinOperator extends Operator {
         // Create combined schema
         Map<String, Integer> joinedSchema = new HashMap<>();
         Map<String, String> transformationDetails = new HashMap<>();
-
-
 
         // Calculate left tuple size for offset
         int leftTupleSize = 0;
@@ -178,15 +236,18 @@ public class JoinOperator extends Operator {
         catalog.addParentSchema(intermediateSchemaId, leftSchemaId);
         catalog.addParentSchema(intermediateSchemaId, rightSchemaId);
 
-        System.out.println("DEBUG JOIN: Joined schema: " + joinedSchema);
-        System.out.println("DEBUG JOIN: Registered schema ID: " + intermediateSchemaId);
+//        System.out.println("DEBUG JOIN: Joined schema: " + joinedSchema);
+//        System.out.println("DEBUG JOIN: Registered schema ID: " + intermediateSchemaId);
 
         schemaRegistered = true;
-
-        // Remove the redundant initEvaluator method
     }
 
-
+    /**
+     * Retrieves the schema map for a given schema ID.
+     * Helper method to access schema information from either intermediate or base schemas.
+     * @param schemaId The schema ID to retrieve the map for
+     * @return A map from column names to indices for the specified schema
+     */
     private Map<String, Integer> getSchemaMap(String schemaId) {
         if (schemaId.startsWith("temp_")) {
             return DBCatalog.getInstance().getIntermediateSchema(schemaId);
@@ -195,10 +256,16 @@ public class JoinOperator extends Operator {
         }
     }
 
-
-
-
-
+    /**\
+     * Helper function for updating schema.
+     * Adds schema entries from a source schema to the joined schema.
+     * Handles both qualified and unqualified column names with appropriate offsets.
+     * @param joinedSchema The target joined schema map to populate
+     * @param transformationDetails Map to record transformation details
+     * @param sourceSchema The source schema to add entries from
+     * @param sourceSchemaId The ID of the source schema
+     * @param offset The index offset to apply to source column indices
+     */
     private void addSchemaEntries(Map<String, Integer> joinedSchema,
                                   Map<String, String> transformationDetails,
                                   Map<String, Integer> sourceSchema,
@@ -251,19 +318,21 @@ public class JoinOperator extends Operator {
     }
 
 
-
+    /**
+     * Returns the join condition expression.
+     * @return The expression used as the join condition, or null for cross product
+     */
     public Expression getJoinCondition() {
         return expression;
     }
 
-    public void setJoinCondition(Expression expression) {
-        this.expression = expression;
-    }
-
+    /**
+     * Recursively update schema information from bottom up.
+     * First update both child operators.
+     */
     @Override
     public void updateSchema() {
-        // Reset schema registration flag
-        System.out.println("JOIN: Updating schema from " + this.intermediateSchemaId + " for expression " + this.expression);
+//        System.out.println("JOIN: Updating schema from " + this.intermediateSchemaId + " for expression " + this.expression);
 
         this.schemaRegistered = false;
         // Update children first
@@ -283,21 +352,8 @@ public class JoinOperator extends Operator {
         // Create a new evaluator with the updated schema
         this.evaluator = new ExpressionEvaluator(intermediateSchemaId);
 
-        System.out.println("JOIN: Updated to schema " + this.intermediateSchemaId);
+//        System.out.println("JOIN: Updated to schema " + this.intermediateSchemaId);
     }
 
-    // Helper method to find original table name for a schema ID
-    private String getOriginalTableForSchema(String schemaId) {
-        // Look up original table for this schema
-        if (schemaId.startsWith("temp_")) {
-            // Could track this during optimization, or infer from parent schemas
-            // For simplicity, let's handle common cases
-            String parentId = DBCatalog.getInstance().getParentSchemaId(schemaId);
-            if (parentId != null && !parentId.startsWith("temp_")) {
-                return parentId; // The base table name
-            }
-        }
-        return null;
-    }
 
 }

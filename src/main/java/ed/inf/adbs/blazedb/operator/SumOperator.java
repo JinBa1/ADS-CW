@@ -45,7 +45,6 @@ public class SumOperator extends Operator {
     /**
      * Constructs a SumOperator with the specified child operator, grouping columns,
      * SUM expressions, and output columns.
-     *
      * @param child The child operator from which to read tuples
      * @param groupByColumns The columns to group by
      * @param sumExpressions The SUM aggregate expressions
@@ -83,6 +82,10 @@ public class SumOperator extends Operator {
 
     /**
      * Resolves the indices of group by columns and output columns.
+     * This method maps column references to their actual positions in the input tuples
+     * using the schema information from the child operator.
+     * The resolved indices are stored in groupByIndices and outputIndices for use
+     * during tuple processing and result construction.
      */
     private void resolveColumnIndices() {
 
@@ -91,7 +94,7 @@ public class SumOperator extends Operator {
         outputIndices.clear();
 
         // Debug output to verify column resolution
-        System.out.println("DEBUG SUM: Resolving group by columns: " + groupByColumns);
+//        System.out.println("DEBUG SUM: Resolving group by columns: " + groupByColumns);
 
         // Resolve group by column indices
         for (Column column : groupByColumns) {
@@ -104,8 +107,8 @@ public class SumOperator extends Operator {
                         " not found in schema " + schemaId);
             }
 
-            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
-                    columnName + " resolved to index " + index);
+//            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
+//                    columnName + " resolved to index " + index);
             groupByIndices.add(index);
         }
 
@@ -120,17 +123,20 @@ public class SumOperator extends Operator {
                         " not found in schema " + schemaId);
             }
 
-            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
-                    columnName + " resolved to index " + index);
+//            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
+//                    columnName + " resolved to index " + index);
             outputIndices.add(index);
         }
     }
 
     /**
      * Returns the next tuple from the grouped and aggregated results.
-     * On first call, reads all tuples from the child and computes the aggregates.
-     *
-     * @return The next result tuple, or null if no more results
+     * On first call, reads and processes all tuples from the child operator
+     * to compute group-by aggregates.
+     * For GROUP BY queries, the returned tuple contains the group-by column values
+     * followed by the aggregate values. For queries without GROUP BY, the returned
+     * tuple contains only the aggregate values.
+     * @return The next result tuple, or null if no more results are available
      */
     @Override
     public Tuple getNextTuple() {
@@ -151,7 +157,7 @@ public class SumOperator extends Operator {
             // If no GROUP BY, just return aggregate values
             if (groupByColumns.isEmpty()) {
                 resultAttributes.addAll(aggregateValues);
-                tupleCounter++;
+                //tupleCounter++;
                 return new Tuple(resultAttributes);
             }
 
@@ -168,7 +174,7 @@ public class SumOperator extends Operator {
             // Add aggregate values to the result
             resultAttributes.addAll(aggregateValues);
 
-            tupleCounter++;
+            //tupleCounter++;
             return new Tuple(resultAttributes);
         }
 
@@ -177,6 +183,12 @@ public class SumOperator extends Operator {
 
     /**
      * Processes all tuples from the child operator, groups them, and computes aggregates.
+     * This is a blocking operation that reads all input tuples before producing any output.
+     * For each tuple read from the child:
+     * 1. Extract group key values (if any)
+     * 2. Get or create aggregate values for this group
+     * 3. Evaluate each SUM expression and add to the appropriate aggregate
+     * After processing all tuples, an iterator is initialized to return the results.
      */
     private void processChildTuples() {
         Tuple tuple;
@@ -217,6 +229,7 @@ public class SumOperator extends Operator {
     /**
      * Resets the operator to its initial state.
      * Clears all processed aggregates and resets the child operator.
+     * After reset, the next call to getNextTuple() will reprocess all tuples.
      */
     @Override
     public void reset() {
@@ -226,19 +239,9 @@ public class SumOperator extends Operator {
     }
 
     /**
-     * Propagates the table name from the child operator.
-     *
-     * @return The table name from the child operator
-     */
-    @Override
-    public String propagateTableName() {
-        return child.propagateTableName();
-    }
-
-    /**
-     * Propagates the schema ID from the child operator.
-     *
-     * @return The schema ID from the child operator
+     * Propagates the schema ID for this operator.
+     * Ensures the schema is registered before returning.
+     * @return The schema ID for this operator after alternation.
      */
     @Override
     public String propagateSchemaId() {
@@ -247,9 +250,17 @@ public class SumOperator extends Operator {
     }
 
 
-    // New method to register the result schem
 
-
+    /**
+     * Registers the schema for this operator.
+     * Creates a schema for the aggregation result, mapping output column names and
+     * aggregate function names to appropriate indices.
+     * The schema includes:
+     * 1. Group by columns selected for output
+     * 2. SUM aggregates with descriptive names
+     * Transformation details are recorded to track how the schema was derived,
+     * which helps with column resolution in parent operators.
+     */
     @Override
     protected void registerSchema() {
         if (schemaRegistered) return;

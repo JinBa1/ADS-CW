@@ -445,25 +445,4 @@ public class SortOperatorTest {
         scanOp.close();
     }
 
-    @Test
-    public void testTableNamePropagation() {
-        // Test that the table name is correctly propagated
-        ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-
-        // Sort by sid
-        List<Column> sortColumns = new ArrayList<>();
-        Table table = new Table();
-        table.setName(TEST_TABLE);
-        Column sidColumn = new Column();
-        sidColumn.setTable(table);
-        sidColumn.setColumnName("sid");
-        sortColumns.add(sidColumn);
-
-        SortOperator sortOp = new SortOperator(scanOp, sortColumns);
-
-        assertEquals("SortOperator should propagate table name from child",
-                scanOp.propagateTableName(), sortOp.propagateTableName());
-
-        scanOp.close();
-    }
 }

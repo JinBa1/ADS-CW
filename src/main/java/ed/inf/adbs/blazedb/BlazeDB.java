@@ -68,7 +68,6 @@ public class BlazeDB {
 	/**
 	 * Executes the provided query plan by repeatedly calling `getNextTuple()`
 	 * on the root object of the operator tree. Writes the result to `outputFile`.
-	 *
 	 * @param root       The root operator of the operator tree (assumed to be non-null).
 	 * @param outputFile The name of the file where the result will be written.
 	 */
@@ -93,44 +92,44 @@ public class BlazeDB {
 			writer.close();
 
 			// Initialize map to track operator type counts
-			Map<String, Integer> operatorCounts = new HashMap<>();
+//			Map<String, Integer> operatorCounts = new HashMap<>();
 			// Report and accumulate operator counts
-			reportOperatorCounts(root, operatorCounts);
+//			reportOperatorCounts(root, operatorCounts);
 
 			// Print total counts by operator type
-			System.out.println("\n--- Total Operator Counts ---");
-			int grandTotal = 0;
-			for (Map.Entry<String, Integer> entry : operatorCounts.entrySet()) {
-				System.out.println(entry.getKey() + ": " + entry.getValue() + " tuples processed");
-				grandTotal += entry.getValue();
-			}
-			System.out.println("Grand total: " + grandTotal + " tuples processed across all operators");
+//			System.out.println("\n--- Total Operator Counts ---");
+//			int grandTotal = 0;
+//			for (Map.Entry<String, Integer> entry : operatorCounts.entrySet()) {
+//				System.out.println(entry.getKey() + ": " + entry.getValue() + " tuples processed");
+//				grandTotal += entry.getValue();
+//			}
+//			System.out.println("Grand total: " + grandTotal + " tuples processed across all operators");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static void reportOperatorCounts(Operator op, Map<String, Integer> operatorCounts) {
-		if (op == null) return;
-
-		String operatorType = op.getClass().getSimpleName();
-		int tupleCount = op.getTupleCounter();
-
-		System.out.println(operatorType + ": " + tupleCount + " tuples produced.");
-
-		// Accumulate counts by operator type
-		operatorCounts.put(
-				operatorType,
-				operatorCounts.getOrDefault(operatorType, 0) + tupleCount
-		);
-
-		// Recursive call to children if exist
-		if (op.hasChild()) {
-			reportOperatorCounts(op.getChild(), operatorCounts);
-		}
-
-		if (op instanceof JoinOperator) {
-			reportOperatorCounts(((JoinOperator) op).getOuterChild(), operatorCounts);
-		}
-	}
+//	private static void reportOperatorCounts(Operator op, Map<String, Integer> operatorCounts) {
+//		if (op == null) return;
+//
+//		String operatorType = op.getClass().getSimpleName();
+//		int tupleCount = op.getTupleCounter();
+//
+//		System.out.println(operatorType + ": " + tupleCount + " tuples produced.");
+//
+//		// Accumulate counts by operator type
+//		operatorCounts.put(
+//				operatorType,
+//				operatorCounts.getOrDefault(operatorType, 0) + tupleCount
+//		);
+//
+//		// Recursive call to children if exist
+//		if (op.hasChild()) {
+//			reportOperatorCounts(op.getChild(), operatorCounts);
+//		}
+//
+//		if (op instanceof JoinOperator) {
+//			reportOperatorCounts(((JoinOperator) op).getOuterChild(), operatorCounts);
+//		}
+//	}
 }
