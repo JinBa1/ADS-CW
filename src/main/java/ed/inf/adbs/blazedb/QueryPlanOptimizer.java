@@ -9,6 +9,8 @@ import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.schema.Column;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Optimizes query plans by removing unnecessary operators and reorganizing
@@ -30,7 +32,6 @@ public class QueryPlanOptimizer {
     /**
      * Optimizes a query plan by applying various transformation rules.
      * Optimization rules are applied in a specific order to ensure correctness.
-     *
      * @param rootOp The root operator of the query plan to optimize
      * @return The optimized query plan
      */
@@ -62,7 +63,6 @@ public class QueryPlanOptimizer {
     /**
      * Verifies schema consistency across the query plan.
      * Logs operator schema information for debugging purposes.
-     *
      * @param op The operator to verify
      */
     private static void verifySchemaConsistency(Operator op) {
@@ -92,7 +92,6 @@ public class QueryPlanOptimizer {
     /**
      * Removes ProjectOperators that don't actually project anything (keep all columns).
      * A projection is considered trivial if it keeps all columns from its child.
-     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -137,7 +136,6 @@ public class QueryPlanOptimizer {
     /**
      * Checks if a ProjectOperator doesn't actually reduce the columns.
      * A projection is trivial if it keeps all columns from its child.
-     *
      * @param projectOp The ProjectOperator to check
      * @param childOp The child operator
      * @return true if the projection is trivial, false otherwise
@@ -195,7 +193,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Gets the schema for an operator by ID, handling both base and intermediate schemas.
-     *
      * @param schemaId The schema ID to retrieve
      * @return The schema as a map from column names to indices
      */
@@ -211,7 +208,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Removes SelectOperators with conditions that are always true.
-     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -256,7 +252,6 @@ public class QueryPlanOptimizer {
     /**
      * Checks if a SELECT condition is trivial (always true).
      * Currently identifies simple cases like "1 = 1".
-     *
      * @param selectOp The SelectOperator to check
      * @return true if the selection is trivial, false otherwise
      */
@@ -280,7 +275,6 @@ public class QueryPlanOptimizer {
     /**
      * Combines consecutive SelectOperators into a single SelectOperator.
      * This reduces the number of operators in the plan and simplifies execution.
-     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -329,7 +323,6 @@ public class QueryPlanOptimizer {
      * Pushes selection operations down the operator tree to reduce
      * intermediate result sizes as early as possible.
      * This respects the left-deep join tree structure.
-     *
      * @param op The operator to optimize
      * @return The optimized operator
      */
@@ -370,7 +363,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Handles split selection conditions by pushing each one down separately.
-     *
      * @param selectOp The SelectOperator with the original condition
      * @param splitConditions The split conditions to process
      * @return The optimized operator structure
@@ -407,7 +399,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Pushes a selection into a join, potentially moving conditions to the join's children.
-     *
      * @param selectOp The SelectOperator to push down
      * @return The optimized operator
      */
@@ -564,7 +555,6 @@ public class QueryPlanOptimizer {
     /**
      * Searches for a ProjectOperator in the operator tree.
      * Also collects columns required by operators above the ProjectOperator.
-     *
      * @param op The operator to search
      * @param parentRequiredColumns Columns required by parent operators
      * @return Information about the found ProjectOperator, or null if none found
@@ -580,8 +570,12 @@ public class QueryPlanOptimizer {
             ProjectOperator projectOp = (ProjectOperator) op;
 
             // Combine project columns with parent required columns
-            Set<Column> combinedColumns = new HashSet<>(projectOp.getColumns());
-            combinedColumns.addAll(parentRequiredColumns);
+            // MODIFIED: Use deduplication to combine columns properly
+            List<Column> allColumns = new ArrayList<>();
+            allColumns.addAll(projectOp.getColumns());
+            allColumns.addAll(parentRequiredColumns);
+
+            Set<Column> combinedColumns = ColumnIdentity.deduplicateColumns(allColumns);
 
             return new ProjectOperatorInfo(projectOp, combinedColumns);
         }
@@ -591,13 +585,17 @@ public class QueryPlanOptimizer {
             return null;
         }
 
-        // Current operator's required columns
+        // Current operator's required columns - preserve existing columns while adding new ones
         Set<Column> currentRequiredColumns = new HashSet<>(parentRequiredColumns);
 
         // Add columns required by this operator
         if (op instanceof SortOperator) {
             SortOperator sortOp = (SortOperator) op;
-            currentRequiredColumns.addAll(sortOp.getSortColumns());
+
+            // MODIFIED: Correctly add sort columns with deduplication
+            List<Column> allColumns = new ArrayList<>(currentRequiredColumns);
+            allColumns.addAll(sortOp.getSortColumns());
+            currentRequiredColumns = ColumnIdentity.deduplicateColumns(allColumns);
         }
         // For DuplicateEliminationOperator, no extra columns are needed
 
@@ -613,7 +611,6 @@ public class QueryPlanOptimizer {
     /**
      * Recursively pushes projections down the operator tree.
      * Ensures that all columns needed by operators are preserved.
-     *
      * @param op The operator to process
      * @param requiredColumns The set of columns required at this level
      * @return The optimized operator tree
@@ -651,7 +648,6 @@ public class QueryPlanOptimizer {
     /**
      * Pushes projection through a SelectOperator.
      * Ensures all columns needed for the selection condition are preserved.
-     *
      * @param op The SelectOperator
      * @param requiredColumns Columns required by parent operators
      * @return The optimized operator tree
@@ -673,7 +669,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Adds columns referenced in a condition to a set of required columns.
-     *
      * @param condition The condition to analyze
      * @param requiredColumns The set to add columns to
      */
@@ -686,7 +681,6 @@ public class QueryPlanOptimizer {
     /**
      * Pushes projection through a JoinOperator.
      * Splits required columns between the join's children and preserves join condition columns.
-     *
      * @param op The JoinOperator
      * @param requiredColumns Columns required by parent operators
      * @return The optimized operator tree
@@ -724,7 +718,6 @@ public class QueryPlanOptimizer {
 
     /**
      * Splits a set of columns between left and right sides of a join.
-     *
      * @param allColumns The set of all required columns
      * @param outerSchemaId Schema ID for the left side
      * @param innerSchemaId Schema ID for the right side
@@ -759,7 +752,6 @@ public class QueryPlanOptimizer {
     /**
      * Pushes projection through a ScanOperator.
      * Creates a ProjectOperator if not all columns are required.
-     *
      * @param op The ScanOperator
      * @param requiredColumns Columns required by parent operators
      * @return The optimized operator tree
@@ -789,8 +781,8 @@ public class QueryPlanOptimizer {
 
     /**
      * Pushes projection through passthrough operators like DuplicateElimination, Sort, and Sum.
-     * These operators typically need all columns from their input for proper operation.
-     *
+     * These operators typically need all colum
+     * ns from their input for proper operation.
      * @param op The operator to process
      * @param requiredColumns Columns required by parent operators
      * @return The optimized operator tree
@@ -800,4 +792,7 @@ public class QueryPlanOptimizer {
         op.setChild(optimizedChild);
         return op;
     }
+
+
 }
+

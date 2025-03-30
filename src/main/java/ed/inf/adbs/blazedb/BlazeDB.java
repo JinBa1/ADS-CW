@@ -25,6 +25,7 @@ import ed.inf.adbs.blazedb.operator.Operator;
  */
 public class BlazeDB {
 
+
 	public static void main(String[] args) {
 
 		if (args.length != 3) {
