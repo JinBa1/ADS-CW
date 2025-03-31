@@ -36,7 +36,7 @@ public class QueryPlanOptimizer {
      * @return The optimized query plan
      */
     public static Operator optimize(Operator rootOp) {
-        System.out.println("Starting query plan optimization...");
+//        System.out.println("Starting query plan optimization...");
 
         // Apply optimization rules in a specific order
         // First, push filtering operations down
@@ -53,7 +53,7 @@ public class QueryPlanOptimizer {
         rootOp = removeUnnecessaryProjects(rootOp);
         rootOp = removeUnnecessarySelects(rootOp);
 
-        System.out.println("Query plan optimization complete.");
+//        System.out.println("Query plan optimization complete.");
 
         // Verify schema consistency after all optimizations
 //        verifySchemaConsistency(rootOp);
@@ -110,7 +110,7 @@ public class QueryPlanOptimizer {
 
                 // Check if this project is trivial (doesn't eliminate any columns)
                 if (isProjectTrivial(projectOp, optimizedChild)) {
-                    System.out.println("Optimizer: Removing unnecessary ProjectOperator");
+//                    System.out.println("Optimizer: Removing unnecessary ProjectOperator");
                     return optimizedChild; // Skip this ProjectOperator
                 }
 
@@ -226,7 +226,7 @@ public class QueryPlanOptimizer {
 
                 // Check if this selection is trivial (always true)
                 if (isSelectionTrivial(selectOp)) {
-                    System.out.println("Optimizer: Removing unnecessary SelectOperator with always-true condition");
+//                    System.out.println("Optimizer: Removing unnecessary SelectOperator with always-true condition");
                     return optimizedChild; // Skip this SelectOperator
                 }
 
@@ -299,7 +299,7 @@ public class QueryPlanOptimizer {
                         childSelect.getCondition()
                 );
 
-                System.out.println("Optimizer: Combining consecutive SelectOperators");
+//                System.out.println("Optimizer: Combining consecutive SelectOperators");
 
                 // Create a new SelectOperator with the combined condition
                 return new SelectOperator(childSelect.getChild(), combinedCondition);
@@ -370,14 +370,14 @@ public class QueryPlanOptimizer {
     private static Operator handleSplitSelectionConditions(
             SelectOperator selectOp, List<Expression> splitConditions) {
 
-        System.out.println("Splitting AND condition into " + splitConditions.size() + " parts: " + splitConditions);
+//        System.out.println("Optimizer: Splitting AND condition into " + splitConditions.size() + " parts: " + splitConditions);
 
         // Get the underlying child
         Operator baseChild = selectOp.getChild();
 
         // Process each condition individually
         for (Expression splitCondition : splitConditions) {
-            System.out.println("Processing split condition: " + splitCondition);
+//            System.out.println("Optimizer: Processing split condition: " + splitCondition);
 
             // Create a temporary SelectOperator for this condition
             SelectOperator tempSelect = new SelectOperator(baseChild, splitCondition);
@@ -420,14 +420,14 @@ public class QueryPlanOptimizer {
 
         // Check if condition applies to only outer child
         if (outerTables.containsAll(tablesInCondition)) {
-            System.out.println("OPTIMIZER: Pushing selection to outer child: " + condition);
+//            System.out.println("OPTIMIZER: Pushing selection to outer child: " + condition);
             joinOp.setOuterChild(new SelectOperator(joinOp.getOuterChild(), condition));
             return joinOp;
         }
 
         // Check if condition applies to only inner child
         if (innerTables.containsAll(tablesInCondition)) {
-            System.out.println("OPTIMIZER: Pushing selection to inner child: " + condition);
+//            System.out.println("OPTIMIZER: Pushing selection to inner child: " + condition);
             joinOp.setChild(new SelectOperator(joinOp.getChild(), condition));
             return joinOp;
         }
@@ -514,26 +514,26 @@ public class QueryPlanOptimizer {
      * @return The optimized plan with pushed-down projections
      */
     private static Operator pushProjectionsDown(Operator rootOp) {
-        System.out.println("Starting projection pushdown optimization...");
+//        System.out.println("Starting projection pushdown optimization...");
 
         // Find ProjectOperator and collect required columns from operators above it
         ProjectOperatorInfo projectInfo = findProjectOperator(rootOp, new HashSet<>());
 
         if (projectInfo != null) {
-            System.out.println("Found ProjectOperator with required columns: " + projectInfo.requiredColumns);
+//            System.out.println("Optimizer: Found ProjectOperator with required columns: " + projectInfo.requiredColumns);
 
-            // Push the projection down with the required columns
-            Operator optimizedChild = pushProjectionDown(
-                    projectInfo.projectOp.getChild(),
-                    projectInfo.requiredColumns
-            );
+            if (!projectInfo.requiredColumns.isEmpty()) {
+                // Push the projection down with the required columns
+                Operator optimizedChild = pushProjectionDown(
+                        projectInfo.projectOp.getChild(),
+                        projectInfo.requiredColumns
+                );
 
-            // Update the project operator's child
-            projectInfo.projectOp.setChild(optimizedChild);
+                // Update the project operator's child
+                projectInfo.projectOp.setChild(optimizedChild);
+            }
 
-            System.out.println("Projection pushdown optimization complete.");
-        } else {
-            System.out.println("No ProjectOperator found, skipping projection pushdown.");
+//            System.out.println("OPTIMIZER: Projection pushdown optimization complete.");
         }
 
         return rootOp;
@@ -594,8 +594,11 @@ public class QueryPlanOptimizer {
 
             // MODIFIED: Correctly add sort columns with deduplication
             List<Column> allColumns = new ArrayList<>(currentRequiredColumns);
-            allColumns.addAll(sortOp.getSortColumns());
-            currentRequiredColumns = ColumnIdentity.deduplicateColumns(allColumns);
+            List<Column> sortColumns = sortOp.getSortColumns();
+            if (!sortColumns.isEmpty()) { // dont add empty ones, just in case
+                allColumns.addAll(sortColumns);
+                currentRequiredColumns = ColumnIdentity.deduplicateColumns(allColumns);
+            }
         }
         // For DuplicateEliminationOperator, no extra columns are needed
 
@@ -707,8 +710,19 @@ public class QueryPlanOptimizer {
         );
 
         // Recursively push down to both children
-        Operator optimizedOuterChild = pushProjectionDown(joinOp.getOuterChild(), leftColumns);
-        Operator optimizedInnerChild = pushProjectionDown(joinOp.getChild(), rightColumns);
+        Operator optimizedOuterChild;
+        if (!leftColumns.isEmpty()) {
+            optimizedOuterChild = pushProjectionDown(joinOp.getOuterChild(), leftColumns);
+        } else {
+            optimizedOuterChild = joinOp.getOuterChild();
+        }
+
+        Operator optimizedInnerChild;
+        if (!rightColumns.isEmpty()) {
+            optimizedInnerChild = pushProjectionDown(joinOp.getChild(), rightColumns);
+        } else {
+            optimizedInnerChild = joinOp.getChild();
+        }
 
         joinOp.setOuterChild(optimizedOuterChild);
         joinOp.setChild(optimizedInnerChild);
@@ -768,11 +782,17 @@ public class QueryPlanOptimizer {
             }
         }
 
+        // Check if the projection would be empty
+        if (tableColumns.isEmpty()) {
+            // Don't create an empty projection, just return the scan operator
+            return scanOp;
+        }
+
         // If we're not selecting all columns, add a projection
         Map<String, Integer> tableSchema = DBCatalog.getInstance().getDBSchemata(tableName);
         if (tableColumns.size() < tableSchema.size()) {
-            System.out.println("Adding projection at scan level for table " + tableName +
-                    " with columns: " + tableColumns);
+//            System.out.println("Optimizer: Adding projection at scan level for table " + tableName +
+//                    " with columns: " + tableColumns);
             return new ProjectOperator(scanOp, tableColumns);
         }
 
@@ -788,6 +808,10 @@ public class QueryPlanOptimizer {
      * @return The optimized operator tree
      */
     private static Operator pushProjectionThroughPassthroughOp(Operator op, Set<Column> requiredColumns) {
+        if (requiredColumns.isEmpty()) {
+            return op; // Don't push empty projections
+        }
+
         Operator optimizedChild = pushProjectionDown(op.getChild(), requiredColumns);
         op.setChild(optimizedChild);
         return op;

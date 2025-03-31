@@ -11,6 +11,7 @@ import java.util.List;
  * This extension of BlazeDBTest focuses on testing query plan optimizations.
  * It adds new test methods specifically designed to verify the behavior of
  * QueryPlanOptimizer in removing unnecessary operators.
+ * Has to run BlazseDBTest first!!!
  */
 public class QueryPlanOptimizerTest extends BlazeDBTest {
 
