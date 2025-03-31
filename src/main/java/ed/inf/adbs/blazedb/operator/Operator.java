@@ -1,6 +1,15 @@
 package ed.inf.adbs.blazedb.operator;
 
+import ed.inf.adbs.blazedb.Constants;
+import ed.inf.adbs.blazedb.DBCatalog;
+import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
+import net.sf.jsqlparser.schema.Column;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract class representing a relational operator in BlazeDB, following the iterator model.
@@ -109,5 +118,70 @@ public abstract class Operator {
         this.schemaRegistered = false;
 
         registerSchema();
+    }
+
+    /**
+     * Resolves column references to their corresponding indices in the schema.
+     * This utility method takes a list of columns and resolves each column to its
+     * index position in the specified schema. It can either create a new list of indices
+     * or populate an existing list with the resolved indices.
+     * @param columns The list of column references to resolve
+     * @param schemaId The schema identifier to resolve against
+     * @param targetList Optional existing list to populate with resolved indices (will be cleared if not null)
+     * @return A list of resolved column indices, either the provided targetList or a new ArrayList
+     * @throws RuntimeException If any column cannot be resolved in the specified schema
+     */
+    protected static List<Integer> resolveColumnIndices(List<Column> columns, String schemaId,
+                                                        List<Integer> targetList) {
+        List<Integer> indices = targetList != null ? targetList : new ArrayList<>();
+        if (targetList != null) {
+            targetList.clear();
+        }
+
+        for (Column column : columns) {
+            String tableName = column.getTable().getName();
+            String columnName = column.getColumnName();
+
+            Integer index = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
+            if (index == null) {
+                throw new RuntimeException("Column " + tableName + "." + columnName +
+                        " not found in schema " + schemaId);
+            }
+
+            indices.add(index);
+        }
+
+        return indices;
+    }
+
+    /**
+     * Helper method for operations that preserve schema structure but add details.
+     * @param child                 The child operator
+     * @param transformationDetails The details of the transformation
+     * @return The ID of the registered schema
+     */
+    protected String registerPassthroughSchema(
+            Operator child,
+            Map<String, String> transformationDetails) {
+
+        String childSchemaId = child.propagateSchemaId();
+        Map<String, Integer> childSchema;
+
+        if (childSchemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
+            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
+        } else {
+            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
+        }
+
+        // Create identical schema structure
+        Map<String, Integer> newSchema = new HashMap<>(childSchema);
+
+        // Register with transformation details
+        return DBCatalog.getInstance().registerSchemaWithTransformation(
+                newSchema,
+                childSchemaId,
+                SchemaTransformationType.OTHER,
+                transformationDetails
+        );
     }
 }

@@ -94,36 +94,10 @@ public class SumOperator extends Operator {
 //        System.out.println("DEBUG SUM: Resolving group by columns: " + groupByColumns);
 
         // Resolve group by column indices
-        for (Column column : groupByColumns) {
-            String tableName = column.getTable().getName();
-            String columnName = column.getColumnName();
-
-            Integer index = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
-            if (index == null) {
-                throw new RuntimeException("Column " + tableName + "." + columnName +
-                        " not found in schema " + schemaId);
-            }
-
-//            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
-//                    columnName + " resolved to index " + index);
-            groupByIndices.add(index);
-        }
+        this.groupByIndices = resolveColumnIndices(groupByColumns, schemaId, groupByIndices);
 
 
-        for (Column column : outputColumns) {
-            String tableName = column.getTable().getName();
-            String columnName = column.getColumnName();
-
-            Integer index = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
-            if (index == null) {
-                throw new RuntimeException("Column " + tableName + "." + columnName +
-                        " not found in schema " + schemaId);
-            }
-
-//            System.out.println("DEBUG SUM: Group by column " + tableName + "." +
-//                    columnName + " resolved to index " + index);
-            outputIndices.add(index);
-        }
+        this.outputIndices = resolveColumnIndices(outputColumns, schemaId, outputIndices);
     }
 
     /**

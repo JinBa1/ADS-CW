@@ -1,7 +1,5 @@
 package ed.inf.adbs.blazedb.operator;
 
-import ed.inf.adbs.blazedb.DBCatalog;
-import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 import ed.inf.adbs.blazedb.TupleComparator;
 import net.sf.jsqlparser.schema.Column;
@@ -146,20 +144,7 @@ public class SortOperator extends Operator {
         }
 
         String schemaId = propagateSchemaId();
-        resolvedIndices = new ArrayList<>();
-
-        for (Column column : sortColumns) {
-            // maybe create the static method somewhere for the below duplcates steps
-            String tableName = column.getTable().getName();
-            String columnName = column.getColumnName();
-
-            Integer index = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
-            if (index == null) {
-                throw new RuntimeException("Column " + tableName + ", " + columnName + " not found in schema " + schemaId);
-            }
-
-            resolvedIndices.add(index);
-        }
+        this.resolvedIndices = resolveColumnIndices(sortColumns, schemaId, null);
 
         indicesResolved = true;
 
@@ -176,19 +161,6 @@ public class SortOperator extends Operator {
     protected void registerSchema() {
         if (schemaRegistered) return;
 
-        // Sort doesn't change schema structure
-        String childSchemaId = child.propagateSchemaId();
-        Map<String, Integer> childSchema;
-
-        if (childSchemaId.startsWith("temp_")) {
-            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
-        } else {
-            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
-        }
-
-        // Create identical schema structure
-        Map<String, Integer> sortSchema = new HashMap<>(childSchema);
-
         // Add details about sort columns
         Map<String, String> transformationDetails = new HashMap<>();
         for (int i = 0; i < sortColumns.size(); i++) {
@@ -197,11 +169,8 @@ public class SortOperator extends Operator {
                     "." + col.getColumnName().toLowerCase());
         }
 
-        // Register with transformation details
-        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
-                sortSchema,
-                childSchemaId,
-                SchemaTransformationType.OTHER,  // Or a new SORT type
+        intermediateSchemaId = registerPassthroughSchema(
+                child,
                 transformationDetails
         );
 

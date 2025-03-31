@@ -1,7 +1,5 @@
 package ed.inf.adbs.blazedb.operator;
 
-import ed.inf.adbs.blazedb.DBCatalog;
-import ed.inf.adbs.blazedb.SchemaTransformationType;
 import ed.inf.adbs.blazedb.Tuple;
 
 import java.util.*;
@@ -113,28 +111,12 @@ public class DuplicateEliminationOperator extends Operator {
     protected void registerSchema() {
         if (schemaRegistered) return;
 
-        // Duplicate elimination doesn't change schema structure
-        String childSchemaId = child.propagateSchemaId();
-        Map<String, Integer> childSchema;
-
-        if (childSchemaId.startsWith("temp_")) {
-            childSchema = DBCatalog.getInstance().getIntermediateSchema(childSchemaId);
-        } else {
-            childSchema = DBCatalog.getInstance().getDBSchemata(childSchemaId);
-        }
-
-        // Create identical schema structure
-        Map<String, Integer> distinctSchema = new HashMap<>(childSchema);
-
         // Create details about distinct operation (minimal)
         Map<String, String> transformationDetails = new HashMap<>();
         transformationDetails.put("distinct", "true");
 
-        // Register with transformation details
-        intermediateSchemaId = DBCatalog.getInstance().registerSchemaWithTransformation(
-                distinctSchema,
-                childSchemaId,
-                SchemaTransformationType.OTHER,  // Or a new DISTINCT type
+        intermediateSchemaId = registerPassthroughSchema(
+                child,
                 transformationDetails
         );
 

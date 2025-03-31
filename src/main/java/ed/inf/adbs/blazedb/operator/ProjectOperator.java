@@ -91,27 +91,13 @@ public class ProjectOperator extends Operator {
 
         // Use child.propagateSchemaId() directly to avoid recursion
         String schemaId = child.propagateSchemaId();
-        resolvedIndices = new ArrayList<>();
+
+        this.resolvedIndices = resolveColumnIndices(columns, schemaId, null);
+        indicesResolved = true;
 
 //        System.out.println("DEBUG PROJECT: Using schema ID: " + schemaId);
 //        System.out.println("DEBUG PROJECT: Resolving columns: " + columns);
-
-        for (Column column : columns) {
-            String tableName = column.getTable().getName();
-            String columnName = column.getColumnName();
-
-            Integer index = DBCatalog.getInstance().resolveColumnWithOrigins(schemaId, tableName, columnName);
-            if (index == null) {
-                throw new RuntimeException("Column " + tableName + "." + columnName +
-                        " not found in schema " + schemaId);
-            }
-
-            resolvedIndices.add(index);
-        }
-
-        indicesResolved = true;
     }
-
     /**
      * Update the projection's schema transformation mapping
      * Help the optimiser to make decisions and other operators to locate the columns.
