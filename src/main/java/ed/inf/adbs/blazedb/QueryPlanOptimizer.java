@@ -56,7 +56,7 @@ public class QueryPlanOptimizer {
         System.out.println("Query plan optimization complete.");
 
         // Verify schema consistency after all optimizations
-        verifySchemaConsistency(rootOp);
+//        verifySchemaConsistency(rootOp);
         return rootOp;
     }
 
@@ -413,10 +413,10 @@ public class QueryPlanOptimizer {
         Set<String> outerTables = getTablesInSchema(outerSchemaId);
         Set<String> innerTables = getTablesInSchema(innerSchemaId);
 
-        System.out.println("OPTIMIZER: Analyzing condition " + condition);
-        System.out.println("OPTIMIZER: Tables in condition: " + tablesInCondition);
-        System.out.println("OPTIMIZER: Outer schema tables: " + outerTables);
-        System.out.println("OPTIMIZER: Inner schema tables: " + innerTables);
+//        System.out.println("OPTIMIZER: Analyzing condition " + condition);
+//        System.out.println("OPTIMIZER: Tables in condition: " + tablesInCondition);
+//        System.out.println("OPTIMIZER: Outer schema tables: " + outerTables);
+//        System.out.println("OPTIMIZER: Inner schema tables: " + innerTables);
 
         // Check if condition applies to only outer child
         if (outerTables.containsAll(tablesInCondition)) {

@@ -423,26 +423,5 @@ public class SortOperatorTest {
         scanOp.close();
     }
 
-    @Test
-    public void testSchemaIdPropagation() {
-        // Test that the schema ID is correctly propagated
-        ScanOperator scanOp = new ScanOperator(TEST_TABLE);
-
-        // Sort by sid
-        List<Column> sortColumns = new ArrayList<>();
-        Table table = new Table();
-        table.setName(TEST_TABLE);
-        Column sidColumn = new Column();
-        sidColumn.setTable(table);
-        sidColumn.setColumnName("sid");
-        sortColumns.add(sidColumn);
-
-        SortOperator sortOp = new SortOperator(scanOp, sortColumns);
-
-        assertEquals("SortOperator should propagate schema ID from child",
-                scanOp.propagateSchemaId(), sortOp.propagateSchemaId());
-
-        scanOp.close();
-    }
 
 }

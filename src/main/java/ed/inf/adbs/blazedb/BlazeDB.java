@@ -90,6 +90,9 @@ public class BlazeDB {
 			// Close the writer
 			writer.close();
 
+			System.out.println("Query executed successfully!");
+			System.out.println("Output file: " + outputFile);
+
 			// Initialize map to track operator type counts
 //			Map<String, Integer> operatorCounts = new HashMap<>();
 			// Report and accumulate operator counts

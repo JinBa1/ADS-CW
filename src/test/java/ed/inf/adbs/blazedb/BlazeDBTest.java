@@ -608,7 +608,7 @@ public class BlazeDBTest {
 		String dbDir = samplesDir + "/db";
 		String inputDir = samplesDir + "/input";
 		String expectedOutputDir = samplesDir + "/expected_output";
-		String testOutputDir = currentDir + "/test_output";
+		String testOutputDir = "src/test/resources/test_sample_output";
 
 		System.out.println("Using database directory: " + dbDir);
 		System.out.println("Using input directory: " + inputDir);
