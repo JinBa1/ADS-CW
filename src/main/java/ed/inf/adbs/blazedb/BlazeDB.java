@@ -1,9 +1,6 @@
 package ed.inf.adbs.blazedb;
 
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.BufferedWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,6 +69,17 @@ public class BlazeDB {
 	 */
 	public static void execute(Operator root, String outputFile) {
 		try {
+
+			// Ensure the output directory exists
+			File outputFileObj = new File(outputFile);
+			File parentDir = outputFileObj.getParentFile();
+			if (parentDir != null && !parentDir.exists()) {
+				boolean created = parentDir.mkdirs();
+				if (!created) {
+					System.err.println("Failed to create output directory: " + parentDir.getAbsolutePath());
+				}
+			}
+
 			// Create a BufferedWriter
 			BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
 
