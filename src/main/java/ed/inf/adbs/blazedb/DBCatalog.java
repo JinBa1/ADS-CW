@@ -97,12 +97,12 @@ public class DBCatalog {
     private void loadDBCatalog(String dBDirectory) {
         try {
             Path dBPath = Paths.get(dBDirectory);
-            Path schemaPath = dBPath.resolve("schema.txt");
-            Path dataPath = dBPath.resolve("data");
+            Path schemaPath = dBPath.resolve(Constants.SCHEMA_FILE_NAME);
+            Path dataPath = dBPath.resolve(Constants.DATA_DIRECTORY_NAME);
             try (BufferedReader schemaReader = Files.newBufferedReader(schemaPath)) {
                 String line;
                 while ((line = schemaReader.readLine()) != null) {
-                    String[] parts = line.split("\\s+");
+                    String[] parts = line.split(Constants.SPLITTER_REGEX);
                     String tableName = parts[0];
 
                     Map<String, Integer> columnMap = new HashMap<>();
@@ -195,7 +195,7 @@ public class DBCatalog {
      * @return A unique identifier for the registered schema
      */
     private String registerIntermediateSchema(Map<String, Integer> schema) {
-        String schemaId = "temp_" + UUID.randomUUID().toString().substring(0, 8);
+        String schemaId = Constants.INTERMEDIATE_SCHEMA_PREFIX + UUID.randomUUID().toString().substring(0, 8);
         intermediateSchemata.put(schemaId, schema);
         return schemaId;
     }
@@ -289,7 +289,7 @@ public class DBCatalog {
      * @return The schema mapping
      */
     private Map<String, Integer> getSchema(String schemaId) {
-        if (schemaId.startsWith("temp_")) {
+        if (schemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
             return intermediateSchemata.get(schemaId);
         } else {
             return dBSchemata.get(schemaId);

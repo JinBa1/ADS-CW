@@ -290,7 +290,7 @@ public class QueryPlanner {
             Expression expr = item.getExpression();
             if (expr instanceof Function) {
                 Function function = (Function) expr;
-                if ("SUM".equalsIgnoreCase(function.getName())) {
+                if (Constants.SUM_FUNCTION_NAME.equalsIgnoreCase(function.getName())) {
                     return true;
                 }
             }
@@ -337,7 +337,7 @@ public class QueryPlanner {
             Expression expr = item.getExpression();
             if (expr instanceof Function) {
                 Function function = (Function) expr;
-                if ("SUM".equalsIgnoreCase(function.getName())) {
+                if (Constants.SUM_FUNCTION_NAME.equalsIgnoreCase(function.getName())) {
                     sumExpressions.add(function);
                 }
             }
@@ -622,7 +622,7 @@ public class QueryPlanner {
         for (Expression expr : sumExpressions) {
             if (expr instanceof Function) {
                 Function function = (Function) expr;
-                if ("SUM".equalsIgnoreCase(function.getName())) {
+                if (Constants.SUM_FUNCTION_NAME.equalsIgnoreCase(function.getName())) {
                     Expression innerExpr = (Expression) function.getParameters().get(0);
 
                     // Extract columns from the SUM expression

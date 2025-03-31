@@ -1,9 +1,6 @@
 package ed.inf.adbs.blazedb.operator;
 
-import ed.inf.adbs.blazedb.DBCatalog;
-import ed.inf.adbs.blazedb.ExpressionEvaluator;
-import ed.inf.adbs.blazedb.SchemaTransformationType;
-import ed.inf.adbs.blazedb.Tuple;
+import ed.inf.adbs.blazedb.*;
 import net.sf.jsqlparser.expression.Expression;
 
 import java.util.ArrayList;
@@ -249,7 +246,7 @@ public class JoinOperator extends Operator {
      * @return A map from column names to indices for the specified schema
      */
     private Map<String, Integer> getSchemaMap(String schemaId) {
-        if (schemaId.startsWith("temp_")) {
+        if (schemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
             return DBCatalog.getInstance().getIntermediateSchema(schemaId);
         } else {
             return DBCatalog.getInstance().getDBSchemata(schemaId);
@@ -274,10 +271,10 @@ public class JoinOperator extends Operator {
 
         // First determine if this is a temp schema that represents a base table
         String originalTableName = null;
-        if (sourceSchemaId.startsWith("temp_")) {
+        if (sourceSchemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
             // Try to find original table through parent schemas
             String parentId = DBCatalog.getInstance().getParentSchemaId(sourceSchemaId);
-            if (parentId != null && !parentId.startsWith("temp_")) {
+            if (parentId != null && !parentId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
                 originalTableName = parentId;
             }
         } else {

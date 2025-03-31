@@ -1,9 +1,6 @@
 package ed.inf.adbs.blazedb.operator;
 
-import ed.inf.adbs.blazedb.DBCatalog;
-import ed.inf.adbs.blazedb.ExpressionEvaluator;
-import ed.inf.adbs.blazedb.SchemaTransformationType;
-import ed.inf.adbs.blazedb.Tuple;
+import ed.inf.adbs.blazedb.*;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
@@ -210,7 +207,7 @@ public class SumOperator extends Operator {
 
                 if (sumExpr instanceof Function) {
                     Function function = (Function) sumExpr;
-                    if ("SUM".equalsIgnoreCase(function.getName())) {
+                    if (Constants.SUM_FUNCTION_NAME.equalsIgnoreCase(function.getName())) {
                         Expression innerExpr = (Expression) function.getParameters().get(0);
                         // Evaluate the expression for this tuple
                         int value = evaluator.evaluateValue(innerExpr, tuple);

@@ -197,7 +197,7 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         if (colIdx == null) {
             // If not found, try looking for the column by its name only
             // Get all keys in the schema
-            Map<String, Integer> schema = getSchemaMap(schemaId);
+            Map<String, Integer> schema = QueryPlanOptimizer.getOperatorSchema(schemaId);
             if (schema != null) {
                 // Try to find any key that ends with ".columnName"
                 String columnNameLower = columnName.toLowerCase();
@@ -270,20 +270,6 @@ public class ExpressionEvaluator extends ExpressionVisitorAdapter {
         }
     }
 
-    /**
-     * Retrieves the schema mapping for a given schema ID.
-     * Handles both intermediate schemas (temp_*) and base table schemas.
-     * @param schemaId The schema ID to retrieve
-     * @return The schema mapping, or null if not found
-     */
-    private Map<String, Integer> getSchemaMap(String schemaId) {
-        if (schemaId == null) return null;
-        if (schemaId.startsWith("temp_")) {
-            return DBCatalog.getInstance().getIntermediateSchema(schemaId);
-        } else {
-            return DBCatalog.getInstance().getDBSchemata(schemaId);
-        }
-    }
 
     /**
      * Gets the schema identifier associated with this evaluator.

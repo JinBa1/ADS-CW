@@ -196,8 +196,8 @@ public class QueryPlanOptimizer {
      * @param schemaId The schema ID to retrieve
      * @return The schema as a map from column names to indices
      */
-    private static Map<String, Integer> getOperatorSchema(String schemaId) {
-        if (schemaId.startsWith("temp_")) {
+    public static Map<String, Integer> getOperatorSchema(String schemaId) {
+        if (schemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
             // For intermediate schemas
             return DBCatalog.getInstance().getIntermediateSchema(schemaId);
         } else {
@@ -487,7 +487,7 @@ public class QueryPlanOptimizer {
     private static Set<String> getTablesInSchema(String schemaId) {
         Set<String> tables = new HashSet<>();
 
-        if (schemaId.startsWith("temp_")) {
+        if (schemaId.startsWith(Constants.INTERMEDIATE_SCHEMA_PREFIX)) {
             // For intermediate schemas, extract table names from column keys
             Map<String, Integer> schema = DBCatalog.getInstance().getIntermediateSchema(schemaId);
             if (schema != null) {
